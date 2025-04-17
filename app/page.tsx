@@ -15,7 +15,6 @@ export default function LandingPage() {
   const router = useRouter();
   const [refCode, setRefCode] = useState<string | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const logoRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
@@ -58,8 +57,8 @@ export default function LandingPage() {
 
     const tl = gsap.timeline({ delay: 0.5 });
 
-    if (chars && chars.length && logoRef.current) {
-      tl.from([chars, logoRef.current], {
+    if (chars && chars.length) {
+      tl.from(chars, {
         filter: 'blur(10px)',
         opacity: 0,
         duration: 0.5,
@@ -165,22 +164,12 @@ export default function LandingPage() {
                   <span>Connecting...</span>
                 </div>
               ) : null}
-              <div className="flex items-center justify-center space-x-4">
-                <h1 ref={titleRef} className="text-5xl md:text-6xl font-bold text-white"></h1>
-                <div ref={logoRef}>
-                  <Image
-                    src="/logo.png"
-                    alt="Catcentsio Logo"
-                    width={60}
-                    height={60}
-                    priority
-                    style={{ width: 'auto', height: 'auto' }}
-                  />
-                </div>
+              <div className="flex items-center justify-center">
+                <h1 ref={titleRef} className="text-4xl sm:text-5xl md:text-6xl font-bold text-white"></h1>
               </div>
 
               <div ref={contentRef} className="space-y-6 opacity-0 translate-y-10">
-                <p className="text-xl text-gray-200">
+                <p className="text-lg sm:text-xl text-gray-200">
                   The playground where clicks turn into culture. Come for the games, stay for the grind.
                 </p>
                 {refCode && <p className="text-sm text-gray-400">Referred by: {refCode}</p>}
