@@ -19,7 +19,7 @@ if (!projectId) {
 const metadata = {
   name: "Catcentsio",
   description: "Catcentsio Dapp",
-  url: "https://www.catcents.io/", // Replace with your actual domain
+  url: "https://www.catcents.io", // Replace with your actual domain
   icons: ["https://www.catcents.io/logo.png"], // Replace with your app's icon
 }
 
