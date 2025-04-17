@@ -17,12 +17,22 @@ const INITIAL_QUESTS = [
   { id: 'connect_twitter', title: 'Connect Twitter', description: 'Link your Twitter account', meowMiles: 30, completed: false, icon: '/quest/link.png' },
   { id: 'connect_discord', title: 'Connect Discord', description: 'Link your Discord account', meowMiles: 30, completed: false, icon: '/quest/discord.png' },
   { id: 'follow_twitter', title: 'Follow Twitter', description: 'Follow @catcentsio on Twitter', meowMiles: 30, completed: false, icon: '/quest/x.png', taskUrl: 'https://twitter.com/catcentsio' },
-  { id: 'share_post', title: 'Share a Post', description: 'Tweet: I love @catcentsio 🐱', meowMiles: 30, completed: false, icon: '/quest/post.png', taskUrl: 'https://twitter.com/intent/tweet?text=I%20love%20@catcentsio%20🐱' },
-  { id: 'like_rt', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/Like.png', taskUrl: 'https://x.com/CatCentsio/status/1829876735468564912' },
+  // New task at position 4 (index 3)
+  { id: 'follow_anselmeow', title: 'Follow Anselmeow', description: 'Follow @Anselmeow_ on Twitter', meowMiles: 30, completed: false, icon: '/quest/x.png', taskUrl: 'https://x.com/Anselmeow_' },
+  // Updated 4th task (now at index 4, position 5) with new tweet content
+  { 
+    id: 'share_post', 
+    title: 'Share a Post', 
+    description: 'Tweet: I Just started earning Meow Miles on @catcentsio', 
+    meowMiles: 30, 
+    completed: false, 
+    icon: '/quest/post.png', 
+    taskUrl: 'https://twitter.com/intent/tweet?text=I%20Just%20started%20earning%20meow%20Miles%20on%20@catcentsio%20The%20degen%20playground%20built%20on%20@Monad_xyz.%20Quests,%20games,%20votes,%20and%20chaos.%20You%20in?%20https://www.catcents.io/%20#CatCents%20#Monad' 
+  },
+  { id: 'like_rt', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/Like.png', taskUrl: 'https://x.com/catcentsio/status/1912899580703940891' },
   { id: 'join_catcents_server', title: 'Join Catcents Server', description: 'Join our Discord server', meowMiles: 30, completed: false, icon: '/quest/server.png', taskUrl: 'https://discord.gg/TXPbt7ztMC' },
   { id: 'join_telegram', title: 'Join Telegram', description: 'Join our Telegram channel', meowMiles: 30, completed: false, icon: '/quest/telegram.png', taskUrl: 'https://t.me/catcentsio' },
 ];
-
 export default function QuestsPage() {
   const { address: account, isConnecting: loading } = useAccount();
   const { disconnect } = useDisconnect();
