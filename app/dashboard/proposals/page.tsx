@@ -561,7 +561,9 @@ export default function Proposals() {
                         {getRandomCatEmoji(proposal.author)}
                       </div>
                       <div>
-                        <h3 className="text-base md:text-lg font-semibold text-purple-400">{proposal.title}</h3>
+                        <h3 className="text-base md:text-lg font-semibold text-purple-400">
+                          Proposal #{proposal.contractProposalId} Demo: {proposal.title}
+                        </h3>
                         <p className="text-xs md:text-sm text-cyan-400 italic">By {proposal.author}</p>
                       </div>
                     </div>

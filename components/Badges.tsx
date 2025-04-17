@@ -58,7 +58,7 @@ export default function Badges({ totalMeowMiles }: BadgesProps) {
     { milestone: 50000, name: 'Shadow Stalker', icon: '/badges/shadow.png' },
     { milestone: 100000, name: 'Furion Elite', icon: '/badges/furion.png' },
     { milestone: 500000, name: 'Mythic Pouncer', icon: '/badges/mythic.png' },
-    { milestone: 10000000, name: 'Catcents Legend', icon: '/badges/catcentslegend.png' },
+    { milestone: 1000000, name: 'Catcents Legend', icon: '/badges/catcentslegend.png' },
   ], []);
 
   const fetchClaimedBadges = useCallback(async () => {
