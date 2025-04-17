@@ -19,8 +19,8 @@ if (!projectId) {
 const metadata = {
   name: "Catcentsio",
   description: "Catcentsio Dapp",
-  url: "https://your-app-url.com", // Replace with your actual domain
-  icons: ["https://your-app-url.com/icon.png"], // Replace with your app's icon
+  url: "https://www.catcents.io/", // Replace with your actual domain
+  icons: ["https://www.catcents.io/logo.png"], // Replace with your app's icon
 }
 
 // Create the modal
