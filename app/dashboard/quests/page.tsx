@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import Sidebar from '@/components/Sidebar';
@@ -9,6 +9,7 @@ import Profile from '@/components/Profile';
 import toast, { Toaster } from 'react-hot-toast';
 import { useAccount, useDisconnect } from 'wagmi';
 import Image from 'next/image';
+import QueryParamsHandler from '@/components/QueryParamsHandler';
 
 const DEPLOYED_DOMAIN = 'https://catcentsio.com';
 
@@ -22,6 +23,8 @@ const INITIAL_QUESTS = [
   { id: 'join_telegram', title: 'Join Telegram', description: 'Join our Telegram channel', meowMiles: 30, completed: false, icon: '/quest/telegram.png', taskUrl: 'https://t.me/catcentsio' },
 ];
 
+
+
 export default function QuestsPage() {
   const { address: account, isConnecting: loading } = useAccount();
   const { disconnect } = useDisconnect();
@@ -32,9 +35,7 @@ export default function QuestsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [processingQuestId, setProcessingQuestId] = useState<string | null>(null);
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [hasRedirected, setHasRedirected] = useState(false);
-  const [hasProcessedParams, setHasProcessedParams] = useState(false);
 
   const fetchUserData = async (address: string) => {
     setIsLoading(true);
@@ -43,7 +44,7 @@ export default function QuestsPage() {
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
         const data = userSnap.data();
-        console.log('Fetched Firebase data:', data);
+        console.log('Fetched Firebase data:', JSON.stringify(data, null, 2));
         const storedQuests = data.quests || {};
         setQuests(
           INITIAL_QUESTS.map((quest) => ({
@@ -159,37 +160,9 @@ export default function QuestsPage() {
     }
   };
 
-  // Handle query parameters (success/error) in a separate useEffect
-  useEffect(() => {
-    if (hasProcessedParams || !account || loading) return;
-
-    const success = searchParams.get('success');
-    const error = searchParams.get('error');
-
-    if (success === 'twitter_connected') {
-      toast.success('Twitter connected successfully!');
-      completeQuest('connect_twitter');
-      router.replace('/dashboard/quests');
-      setHasProcessedParams(true);
-    } else if (success === 'discord_connected') {
-      toast.success('Discord connected successfully!');
-      completeQuest('connect_discord');
-      router.replace('/dashboard/quests');
-      setHasProcessedParams(true);
-    } else if (error === 'twitter_failed') {
-      toast.error('Failed to connect Twitter.');
-      router.replace('/dashboard/quests');
-      setHasProcessedParams(true);
-    } else if (error === 'discord_failed') {
-      toast.error('Failed to connect Discord.');
-      router.replace('/dashboard/quests');
-      setHasProcessedParams(true);
-    }
-  }, [account, loading, searchParams, completeQuest, router, hasProcessedParams]);
-
   // Main useEffect for fetching user data and handling redirects
   useEffect(() => {
-    console.log('Quests useEffect - Account:', account, 'Loading:', loading, 'HasRedirected:', hasRedirected);
+    console.log('Rendering page - Loading:', loading, 'Account:', account);
     if (loading) return;
 
     if (!account && !hasRedirected) {
@@ -203,6 +176,11 @@ export default function QuestsPage() {
       fetchUserData(account);
     }
   }, [account, loading, router, hasRedirected]);
+
+  // Handle query parameters with Suspense
+  const handleParamsProcessed = () => {
+    router.replace('/dashboard/quests');
+  };
 
   if (loading || isLoading) {
     return (
@@ -221,6 +199,14 @@ export default function QuestsPage() {
       <Sidebar onDisconnect={disconnect} />
       <main className="flex-1 p-4 md:p-8">
         <Toaster position="top-right" toastOptions={{ style: { background: '#1a1a1a', color: '#fff', border: '1px solid #9333ea' } }} />
+        <Suspense fallback={<div>Loading query parameters...</div>}>
+          <QueryParamsHandler
+            account={account}
+            loading={loading}
+            completeQuest={completeQuest}
+            onParamsProcessed={handleParamsProcessed}
+          />
+        </Suspense>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
           <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-purple-500 to-cyan-400 bg-clip-text text-transparent">
             Catcentsio Quests
