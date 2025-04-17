@@ -1,29 +1,27 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
-import { db } from '@/lib/firebase';
+import { useState, useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { db } from '../../../lib/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import Sidebar from '@/components/Sidebar';
-import Profile from '@/components/Profile';
-import toast, { Toaster } from 'react-hot-toast';
+import Sidebar from '../../../components/Sidebar';
+import Profile from '../../../components/Profile';
+import confetti from 'canvas-confetti';
 import { useAccount, useDisconnect } from 'wagmi';
+import toast, { Toaster } from 'react-hot-toast';
 import Image from 'next/image';
-import QueryParamsHandler from '@/components/QueryParamsHandler';
 
-const DEPLOYED_DOMAIN = 'https://catcentsio.com';
+const DEPLOYED_DOMAIN = 'https://catcents.io';
 
 const INITIAL_QUESTS = [
   { id: 'connect_twitter', title: 'Connect Twitter', description: 'Link your Twitter account', meowMiles: 30, completed: false, icon: '/quest/link.png' },
   { id: 'connect_discord', title: 'Connect Discord', description: 'Link your Discord account', meowMiles: 30, completed: false, icon: '/quest/discord.png' },
-  { id: 'follow_twitter', title: 'Follow Twitter', description: 'Follow @CatCentsio on Twitter', meowMiles: 30, completed: false, icon: '/quest/x.png', taskUrl: 'https://x.com/CatCentsio' },
-  { id: 'share_post', title: 'Share a Post', description: 'Tweet: I love @CatCentsio 🐱', meowMiles: 30, completed: false, icon: '/quest/post.png', taskUrl: 'https://x.com/intent/tweet?text=I%20love%20@CatCentsio%20🐱' },
-  { id: 'like_rt', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/Like.png', taskUrl: 'https://x.com/CatCentsio' },
+  { id: 'follow_twitter', title: 'Follow Twitter', description: 'Follow @catcentsio on Twitter', meowMiles: 30, completed: false, icon: '/quest/x.png', taskUrl: 'https://twitter.com/catcentsio' },
+  { id: 'share_post', title: 'Share a Post', description: 'Tweet: I love @catcentsio 🐱', meowMiles: 30, completed: false, icon: '/quest/post.png', taskUrl: 'https://twitter.com/intent/tweet?text=I%20love%20@catcentsio%20🐱' },
+  { id: 'like_rt', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/Like.png', taskUrl: 'https://x.com/CatCentsio/status/1829876735468564912' },
   { id: 'join_catcents_server', title: 'Join Catcents Server', description: 'Join our Discord server', meowMiles: 30, completed: false, icon: '/quest/server.png', taskUrl: 'https://discord.gg/TXPbt7ztMC' },
   { id: 'join_telegram', title: 'Join Telegram', description: 'Join our Telegram channel', meowMiles: 30, completed: false, icon: '/quest/telegram.png', taskUrl: 'https://t.me/catcentsio' },
 ];
-
-
 
 export default function QuestsPage() {
   const { address: account, isConnecting: loading } = useAccount();
@@ -35,6 +33,7 @@ export default function QuestsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [processingQuestId, setProcessingQuestId] = useState<string | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
   const [hasRedirected, setHasRedirected] = useState(false);
 
   const fetchUserData = async (address: string) => {
@@ -44,7 +43,7 @@ export default function QuestsPage() {
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
         const data = userSnap.data();
-        console.log('Fetched Firebase data:', JSON.stringify(data, null, 2));
+        console.log('Fetched Firebase data:', data);
         const storedQuests = data.quests || {};
         setQuests(
           INITIAL_QUESTS.map((quest) => ({
@@ -72,7 +71,7 @@ export default function QuestsPage() {
         });
         setReferralLink(newReferralLink);
       }
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Error fetching user data:', error);
       toast.error('Failed to load quests. Please try again.');
     } finally {
@@ -80,10 +79,20 @@ export default function QuestsPage() {
     }
   };
 
-  const completeQuest = useCallback(async (questId: string) => {
-    if (!account) return;
+  const completeQuest = async (questId: string) => {
+    if (!account) {
+      console.error('completeQuest: No account available');
+      return;
+    }
     const quest = quests.find((q) => q.id === questId);
-    if (!quest || quest.completed) return;
+    if (!quest) {
+      console.error(`completeQuest: Quest ${questId} not found`);
+      return;
+    }
+    if (quest.completed) {
+      console.log(`completeQuest: Quest ${questId} already completed locally`);
+      return;
+    }
 
     const userRef = doc(db, 'users', account);
     const userSnap = await getDoc(userRef);
@@ -94,6 +103,8 @@ export default function QuestsPage() {
       return;
     }
 
+    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+
     const newQuests = quests.map((q) => (q.id === questId ? { ...q, completed: true } : q));
     const newMeowMiles = (currentData.meowMiles || 0) + quest.meowMiles;
 
@@ -102,6 +113,7 @@ export default function QuestsPage() {
     setProcessingQuestId(null);
 
     try {
+      console.log(`Completing quest ${questId}: Updating Firebase with ${newMeowMiles} Meow Miles`);
       await setDoc(
         userRef,
         {
@@ -111,37 +123,31 @@ export default function QuestsPage() {
         { merge: true }
       );
       toast.success(`${quest.title} completed! +${quest.meowMiles} Meow Miles`);
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Failed to complete quest:', error);
       toast.error('Failed to complete quest.');
       setQuests(quests); // Revert local state on failure
+    } finally {
+      sessionStorage.removeItem('pendingQuest');
     }
-  }, [account, quests]);
+  };
 
   const handleTaskStart = async (quest: typeof INITIAL_QUESTS[0]) => {
-    if (quest.completed || processingQuestId) return;
+    if (quest.completed || processingQuestId) {
+      console.log('handleTaskStart: Quest completed or processing', { questId: quest.id, processingQuestId });
+      return;
+    }
 
     setProcessingQuestId(quest.id);
-    console.log('Starting quest:', quest.id, 'URL:', quest.taskUrl);
 
-    try {
-      if (quest.id === 'connect_twitter') {
-        window.location.href = `/api/twitter/auth?walletAddress=${account}`;
-      } else if (quest.id === 'connect_discord') {
-        window.location.href = `/api/discord/auth?walletAddress=${account}`;
-      } else if (quest.taskUrl) {
-        const newWindow = window.open(quest.taskUrl, '_blank', 'noopener,noreferrer');
-        if (!newWindow) {
-          throw new Error('Failed to open window. Please allow pop-ups.');
-        }
-        await new Promise((resolve) => setTimeout(resolve, 5000));
-        await completeQuest(quest.id);
-      }
-    } catch (error: unknown) {
-      console.error('Error in handleTaskStart:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to start quest.';
-      toast.error(errorMessage);
-      setProcessingQuestId(null);
+    if (quest.id === 'connect_twitter') {
+      window.location.href = `/api/twitter/auth?walletAddress=${account}`;
+    } else if (quest.id === 'connect_discord') {
+      window.location.href = `/api/discord/auth?walletAddress=${account}`;
+    } else if (quest.taskUrl) {
+      window.open(quest.taskUrl, '_blank');
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+      await completeQuest(quest.id);
     }
   };
 
@@ -160,13 +166,14 @@ export default function QuestsPage() {
     }
   };
 
-  // Main useEffect for fetching user data and handling redirects
+  // Navigation and auth handling
   useEffect(() => {
-    console.log('Rendering page - Loading:', loading, 'Account:', account);
+    console.log('Navigation useEffect - Account:', account, 'Loading:', loading, 'HasRedirected:', hasRedirected, 'Pathname:', pathname);
+
     if (loading) return;
 
     if (!account && !hasRedirected) {
-      console.log('Quests - Redirecting to /');
+      console.log('Redirecting to / (no account)');
       setHasRedirected(true);
       router.push('/');
       return;
@@ -174,13 +181,77 @@ export default function QuestsPage() {
 
     if (account) {
       fetchUserData(account);
-    }
-  }, [account, loading, router, hasRedirected]);
 
-  // Handle query parameters with Suspense
-  const handleParamsProcessed = () => {
-    router.replace('/dashboard/quests');
-  };
+      const urlParams = new URLSearchParams(window.location.search);
+      const success = urlParams.get('success');
+      const error = urlParams.get('error');
+
+      if (success) {
+        console.log('Processing success param:', success);
+        if (success === 'twitter_connected') {
+          toast.success('Twitter connected successfully!');
+          completeQuest('connect_twitter');
+        } else if (success === 'discord_connected') {
+          toast.success('Discord connected successfully!');
+          completeQuest('connect_discord');
+        }
+        if (pathname !== '/dashboard/quests') {
+          console.log('Replacing to /dashboard/quests after auth');
+          router.replace('/dashboard/quests');
+        }
+        return;
+      }
+
+      if (error) {
+        console.log('Processing error param:', error);
+        if (error === 'twitter_failed') {
+          toast.error('Failed to connect Twitter.');
+        } else if (error === 'discord_failed') {
+          toast.error('Failed to connect Discord.');
+        }
+      }
+
+      const returnUrl = sessionStorage.getItem('returnUrl');
+      if (returnUrl && pathname !== returnUrl) {
+        console.log(`Redirecting to stored returnUrl: ${returnUrl}`);
+        router.replace(returnUrl);
+        return;
+      }
+
+      if (pathname === '/dashboard') {
+        console.log('Force redirecting to /dashboard/quests from /dashboard');
+        router.replace('/dashboard/quests');
+      }
+    }
+  }, [account, loading, router, hasRedirected, pathname]);
+
+  // Pending quest handling
+  useEffect(() => {
+    if (!account || loading) return;
+
+    const pendingQuest = sessionStorage.getItem('pendingQuest');
+    if (pendingQuest) {
+      try {
+        const { questId, startTime } = JSON.parse(pendingQuest);
+        const quest = quests.find((q) => q.id === questId);
+        if (quest && !quest.completed) {
+          const elapsed = Date.now() - startTime;
+          if (elapsed >= 10000) {
+            console.log(`Completing pending quest ${questId} from sessionStorage`);
+            completeQuest(questId);
+          } else {
+            const remaining = 10000 - elapsed;
+            console.log(`Waiting ${remaining}ms to complete pending quest ${questId}`);
+            setProcessingQuestId(questId);
+            setTimeout(() => completeQuest(questId), remaining);
+          }
+        }
+      } catch (error) {
+        console.error('Error processing pending quest:', error);
+        sessionStorage.removeItem('pendingQuest');
+      }
+    }
+  }, [account, loading, quests]);
 
   if (loading || isLoading) {
     return (
@@ -199,17 +270,9 @@ export default function QuestsPage() {
       <Sidebar onDisconnect={disconnect} />
       <main className="flex-1 p-4 md:p-8">
         <Toaster position="top-right" toastOptions={{ style: { background: '#1a1a1a', color: '#fff', border: '1px solid #9333ea' } }} />
-        <Suspense fallback={<div>Loading query parameters...</div>}>
-          <QueryParamsHandler
-            account={account}
-            loading={loading}
-            completeQuest={completeQuest}
-            onParamsProcessed={handleParamsProcessed}
-          />
-        </Suspense>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
           <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-purple-500 to-cyan-400 bg-clip-text text-transparent">
-            Catcentsio Quests
+            Catcents Quests
           </h1>
           <div className="ml-auto">
             <Profile account={account} onCopyAddress={handleCopyAddress} onDisconnect={disconnect} />
@@ -220,7 +283,7 @@ export default function QuestsPage() {
           {/* Meow Miles Section */}
           <div className="text-center bg-black/80 rounded-xl p-6 md:p-8 border border-purple-900/50 shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 transition-shadow duration-300">
             <h2 className="text-2xl md:text-3xl font-semibold text-purple-300 mb-4">Your Meow Miles</h2>
-            <p className="text-5xl md:text-6xl font-extrabold bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 bg-clip-text text-transparent animate-pulse-slow">
+            <p className="text-5xl md:text-6xl font-extrabold bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 bg-clip-text text-transparent animate-bounce-slow">
               {meowMiles}
             </p>
             <p className="text-sm md:text-base text-gray-400 mt-2">Complete quests to earn more!</p>
@@ -244,6 +307,10 @@ export default function QuestsPage() {
                       width={48}
                       height={48}
                       className="w-12 h-12 object-contain"
+                      onError={(e) => {
+                        console.error(`Failed to load image: ${quest.icon}`);
+                        e.currentTarget.src = '/quest/fallback.png';
+                      }}
                     />
                     <div className="flex-1">
                       <p className="text-lg md:text-xl font-semibold text-purple-200">{quest.title}</p>
@@ -286,7 +353,7 @@ export default function QuestsPage() {
               <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
                 <div className="text-center sm:text-left">
                   <p className="text-lg md:text-xl font-semibold text-purple-200">Invite Your Friends</p>
-                  <p className="text-sm md:text-base text-gray-400 mt-2">
+                  <p className="text-sm md:text-base text-gray-300 mt-2">
                     Earn <span className="text-cyan-400 font-bold">500 Meow Miles</span> per referral! (
                     {referrals} referrals,{' '}
                     <span className="text-cyan-400 font-bold">{referrals * 500} Miles</span> earned)
