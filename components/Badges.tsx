@@ -302,3 +302,5 @@ export default function Badges({ totalMeowMiles }: BadgesProps) {
     </div>
   );
 }
+
+//whatthe fuck
