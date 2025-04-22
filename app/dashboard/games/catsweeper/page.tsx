@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc, runTransaction, increment } from 'firebase/firestore';
 import { db } from '../../../../lib/firebase';
-import Sidebar from '../../../../components/Sidebar';
 import Profile from '../../../../components/Profile';
 import Loader from '../../../../components/Loader';
 import toast, { Toaster } from 'react-hot-toast';
@@ -412,7 +411,7 @@ export default function Catsweeper() {
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-black to-purple-950 text-white">
-      <Sidebar onDisconnect={disconnect} />
+
       <main className="flex-1 p-4 md:p-8">
         <Toaster position="top-right" toastOptions={{ style: { background: '#1a1a1a', color: '#fff', border: '1px solid #9333ea' } }} />
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">

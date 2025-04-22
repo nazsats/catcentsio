@@ -86,6 +86,16 @@ export default function Sidebar({ onDisconnect }: SidebarProps) {
               />
               <span className="text-base">Games</span>
             </Link>
+            <Link href="/dashboard/leaderboard" className={getLinkClass('/dashboard/leaderboard')}>
+              <Image
+                src="/sidebar/leaderboard.png"
+                alt="Leaderboard Icon"
+                width={24}
+                height={24}
+                className="w-6 h-6"
+              />
+              <span className="text-base">Leaderboard</span>
+            </Link>
             <div className={getLinkClass('/dashboard/nft-staking', true)}>
               <Image
                 src="/sidebar/nft-staking.png"

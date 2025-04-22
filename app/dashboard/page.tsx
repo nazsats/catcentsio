@@ -1,17 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, increment } from 'firebase/firestore';
-import Sidebar from '@/components/Sidebar';
+import { doc, getDoc, setDoc, increment, DocumentSnapshot } from 'firebase/firestore';
 import Profile from '@/components/Profile';
 import Badges from '@/components/Badges';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import Loader from '@/components/Loader'; // Import Loader
+import Loader from '@/components/Loader';
 import { useAccount, useDisconnect, useBalance, useSendTransaction } from 'wagmi';
 import { monadTestnet } from '@reown/appkit/networks';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function DashboardPage() {
   const { address: account, isConnecting: loading } = useAccount();
@@ -19,45 +18,120 @@ export default function DashboardPage() {
   const { sendTransaction } = useSendTransaction();
   const { data: balanceData } = useBalance({ address: account, chainId: monadTestnet.id });
   const [meowMiles, setMeowMiles] = useState({ quests: 0, proposals: 0, games: 0, referrals: 0, total: 0 });
+  const [season0Points, setSeason0Points] = useState<number>(0);
   const [monBalance, setMonBalance] = useState<string>('0');
   const [lastCheckIn, setLastCheckIn] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<string>('24:00:00');
   const [checkingIn, setCheckingIn] = useState(false);
   const [referralsList, setReferralsList] = useState<string[]>([]);
-  const router = useRouter();
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [isConnectingEmail, setIsConnectingEmail] = useState(false);
   const queryClient = useQueryClient();
-  const [hasRedirected, setHasRedirected] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const CHECK_IN_ADDRESS = '0xfF8b7625894441C26fEd460dD21360500BF4E767';
 
-  // Fetch user data with React Query
-  const fetchUserData = async (address: string) => {
-    console.log('fetchUserData called with address:', address);
-    const userRef = doc(db, 'users', address);
-    const userSnap = await getDoc(userRef);
-    if (userSnap.exists()) {
-      const data = userSnap.data();
-      console.log('Firebase data:', data);
-      return {
-        quests: Math.floor(data.meowMiles || 0),
-        proposals: Math.floor(data.proposalsGmeow || 0),
-        games: Math.floor(data.gamesGmeow || 0),
-        referrals: Math.floor(data.referrals?.length || 0),
-        total: Math.floor((data.meowMiles || 0) + (data.proposalsGmeow || 0) + (data.gamesGmeow || 0) + (data.referrals?.length || 0)),
-        lastCheckIn: data.lastCheckIn || null,
-        referralsList: data.referrals || [],
-      };
+  // Initialize userEmail from localStorage on mount
+  useEffect(() => {
+    const storedEmail = localStorage.getItem('userEmail');
+    if (storedEmail) {
+      setUserEmail(storedEmail);
+      console.log('Dashboard: Initialized userEmail from localStorage:', storedEmail);
     }
-    return null;
+  }, []);
+
+  // Handle OAuth callback for email connection
+  useEffect(() => {
+    const email = searchParams.get('email');
+    const points = searchParams.get('points');
+    const warning = searchParams.get('warning');
+    console.log('Dashboard: OAuth callback params:', { email, points, warning });
+    if (warning) {
+      toast.error(decodeURIComponent(warning));
+      router.replace('/dashboard');
+    } else if (email && points && account) {
+      console.log('Dashboard: OAuth callback received:', { email, points });
+      setSeason0Points(Number(points));
+      setUserEmail(email);
+      localStorage.setItem('userEmail', email);
+      toast.success('Email connected successfully!');
+      queryClient.invalidateQueries({ queryKey: ['userData', account] });
+      queryClient.refetchQueries({ queryKey: ['userData', account] });
+      router.replace('/dashboard');
+    }
+  }, [searchParams, account, queryClient, router]);
+
+  // Log Season 0 Points Card data
+  useEffect(() => {
+    console.log('Season 0 Points Card:', { userEmail, season0Points });
+  }, [userEmail, season0Points]);
+
+  const fetchUserData = async (address: string) => {
+    console.log('fetchUserData: Fetching data for account:', address);
+    try {
+      const userRef = doc(db, 'users', address);
+      const userSnap = (await Promise.race([
+        getDoc(userRef),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Firestore getDoc timed out')), 10000)
+        ),
+      ]).catch((error) => {
+        console.error('fetchUserData: Firestore getDoc error:', error);
+        throw error;
+      })) as DocumentSnapshot;
+
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        console.log('fetchUserData: Firebase data:', data);
+        return {
+          quests: Math.floor(data.meowMiles || 0),
+          proposals: Math.floor(data.proposalsGmeow || 0),
+          games: Math.floor(data.gamesGmeow || 0),
+          referrals: Math.floor(data.referrals?.length || 0),
+          total: Math.floor(
+            (data.meowMiles || 0) +
+              (data.proposalsGmeow || 0) +
+              (data.gamesGmeow || 0) +
+              (data.referrals?.length || 0)
+          ),
+          lastCheckIn: data.lastCheckIn || null,
+          referralsList: data.referrals || [],
+          season0Points: data.season0Points || 0,
+          email: data.email || null,
+        };
+      } else {
+        console.log('fetchUserData: No user data found in Firestore for address:', address);
+        return {
+          quests: 0,
+          proposals: 0,
+          games: 0,
+          referrals: 0,
+          total: 0,
+          lastCheckIn: null,
+          referralsList: [],
+          season0Points: 0,
+          email: null,
+        };
+      }
+    } catch (error) {
+      console.error('fetchUserData: Error fetching user data:', error);
+      throw error;
+    }
   };
 
-  const { data: userData, isLoading: userDataLoading } = useQuery({
+  const { data: userData, isLoading: userDataLoading, error: userDataError, refetch } = useQuery({
     queryKey: ['userData', account],
     queryFn: () => fetchUserData(account!),
     enabled: !!account,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(attempt * 1000, 3000),
+    staleTime: 0,
+    gcTime: 1000 * 60 * 5,
   });
 
   useEffect(() => {
+    console.log('Dashboard: userData useEffect:', { userData, userDataLoading, userDataError });
     if (userData) {
       setMeowMiles({
         quests: userData.quests,
@@ -68,11 +142,21 @@ export default function DashboardPage() {
       });
       setLastCheckIn(userData.lastCheckIn);
       setReferralsList(userData.referralsList);
+      setSeason0Points(userData.season0Points);
+      if (userData.email && !userEmail) {
+        setUserEmail(userData.email);
+        localStorage.setItem('userEmail', userData.email);
+        console.log('Dashboard: Set userEmail from Firestore:', userData.email);
+      }
+      console.log('Dashboard: Updated season0Points:', userData.season0Points, 'email:', userData.email);
       if (userData.lastCheckIn) startCountdown(userData.lastCheckIn);
     }
-  }, [userData]);
+    if (userDataError) {
+      console.error('Dashboard: userData query error:', userDataError);
+      toast.error('Failed to load user data: ' + (userDataError.message || 'Unknown error'));
+    }
+  }, [userData, userDataLoading, userDataError, userEmail]);
 
-  // Update MON balance
   useEffect(() => {
     if (balanceData) {
       setMonBalance(Number(balanceData.formatted).toFixed(6));
@@ -81,28 +165,24 @@ export default function DashboardPage() {
     }
   }, [balanceData]);
 
-  // Handle redirect to landing if not connected
   useEffect(() => {
-    console.log('Dashboard - useEffect - Account:', account, 'Loading:', loading);
-    if (!account && !loading && !hasRedirected) {
-      console.log('No account, redirecting to /');
-      setHasRedirected(true);
-      router.replace('/');
+    if (account) {
+      console.log('Dashboard: Invalidating userData query for account:', account);
+      queryClient.invalidateQueries({ queryKey: ['userData', account] });
     }
-  }, [account, loading, router, hasRedirected]);
+  }, [account, queryClient]);
 
-  // Handle daily check-in with Wagmi
   const handleDailyCheckIn = async () => {
-    console.log('Check-in initiated:', { account, checkingIn });
+    console.log('Dashboard: Check-in initiated:', { account, checkingIn });
     if (!account || checkingIn) {
-      console.warn('Check-in aborted: missing account or already checking in');
+      console.warn('Dashboard: Check-in aborted: missing account or already checking in');
       toast.error('Please ensure a wallet is connected.');
       return;
     }
     const now = Date.now();
     const oneDay = 24 * 60 * 60 * 1000;
     if (lastCheckIn && now - lastCheckIn < oneDay) {
-      console.log('Check-in not allowed yet:', { lastCheckIn, timeLeft: oneDay - (now - lastCheckIn) });
+      console.log('Dashboard: Check-in not allowed yet:', { lastCheckIn, timeLeft: oneDay - (now - lastCheckIn) });
       toast.error('Check-in not available yet.');
       return;
     }
@@ -119,7 +199,7 @@ export default function DashboardPage() {
         },
         {
           onSuccess: async (hash) => {
-            console.log('Transaction confirmed:', hash);
+            console.log('Dashboard: Transaction confirmed:', hash);
             const userRef = doc(db, 'users', account);
             await setDoc(userRef, { lastCheckIn: now, meowMiles: increment(10) }, { merge: true });
 
@@ -144,7 +224,7 @@ export default function DashboardPage() {
             );
           },
           onError: (err) => {
-            console.error('Check-in error:', err);
+            console.error('Dashboard: Check-in error:', err);
             toast.dismiss(pendingToast);
             if (err.message.includes('insufficient funds')) {
               toast.error(
@@ -168,12 +248,38 @@ export default function DashboardPage() {
         }
       );
     } catch (error: unknown) {
-        console.error('Daily check-in failed:', error);
-        toast.dismiss(pendingToast);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        toast.error(`Failed to check-in: ${errorMessage}`, { duration: 5000 });
-      }finally {
+      console.error('Dashboard: Daily check-in failed:', error);
+      toast.dismiss(pendingToast);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to check-in: ${errorMessage}`, { duration: 5000 });
+    } finally {
       setCheckingIn(false);
+    }
+  };
+
+  const handleConnectEmail = async () => {
+    if (!account) {
+      console.log('Dashboard: No account for connect email');
+      toast.error('Please connect your wallet first.');
+      return;
+    }
+    try {
+      setIsConnectingEmail(true);
+      console.log('Dashboard: Initiating Google OAuth at:', new Date().toISOString());
+
+      const oauthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+      oauthUrl.searchParams.append('client_id', process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '');
+      oauthUrl.searchParams.append('redirect_uri', `${process.env.NEXT_PUBLIC_BASE_URL}/api/auth/callback`);
+      oauthUrl.searchParams.append('response_type', 'code');
+      oauthUrl.searchParams.append('scope', 'email');
+      oauthUrl.searchParams.append('state', account);
+
+      window.location.href = oauthUrl.toString();
+    } catch (error: unknown) {
+      console.error('Dashboard: Error initiating Google OAuth:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to start authentication: ${errorMessage}`);
+      setIsConnectingEmail(false);
     }
   };
 
@@ -220,6 +326,8 @@ export default function DashboardPage() {
     return `${address.slice(0, 7)}...${address.slice(-6)}`;
   };
 
+  console.log('Dashboard: Rendering - Loading:', loading, 'userDataLoading:', userDataLoading, 'Account:', account, 'UserEmail:', userEmail);
+
   if (userDataLoading || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-black to-purple-950 text-white">
@@ -227,142 +335,179 @@ export default function DashboardPage() {
       </div>
     );
   }
-  if (!account) return null;
 
+  if (userDataError) {
+    console.log('Dashboard: Rendering error state due to userDataError:', userDataError.message);
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-black to-purple-950 text-white">
+        <div className="text-center">
+          <h2 className="text-xl text-red-400">Failed to load dashboard</h2>
+          <p className="text-gray-300">Error: {userDataError.message || 'Unknown error'}</p>
+          <p className="text-gray-300">Please try refreshing the page or reconnecting your wallet.</p>
+          <button
+            onClick={() => refetch()}
+            className="mt-4 bg-purple-600 px-4 py-2 rounded-full text-white hover:bg-purple-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  console.log('Dashboard: Rendering main content', { season0Points, userEmail });
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-black to-purple-950 text-white">
-      <Sidebar onDisconnect={disconnect} />
-      <main className="flex-1 p-4 md:p-8 overflow-auto">
-        <Toaster position="top-right" />
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
-          <h2 className="text-xl md:text-2xl font-semibold text-purple-300">Dashboard</h2>
-          <div className="ml-auto">
-            <Profile account={account} onCopyAddress={handleCopyAddress} onDisconnect={disconnect} />
-          </div>
+    <>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
+        <h2 className="text-xl md:text-2xl font-semibold text-purple-300">Dashboard</h2>
+        <div className="ml-auto">
+          <Profile account={account ?? null} onCopyAddress={handleCopyAddress} onDisconnect={disconnect} />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-black/90 rounded-xl p-6 border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-3">
-            <h4 className="text-lg font-semibold text-purple-400 mb-4">Daily Check-In</h4>
-            <div className="space-y-4">
-              <p className="text-center text-gray-300 text-sm md:text-base">
-                Next check-in: <span className="font-mono text-cyan-400">{countdown}</span>
-              </p>
-              <button
-                onClick={handleDailyCheckIn}
-                className="w-full bg-gradient-to-r from-purple-700 to-cyan-500 text-white py-3 rounded-lg font-semibold hover:from-purple-600 hover:to-cyan-400 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
-                disabled={checkingIn || (lastCheckIn !== null && Date.now() - lastCheckIn < 24 * 60 * 60 * 1000)}
-              >
-                {checkingIn ? (
-                  <span className="flex items-center justify-center">
-                    <Loader size={20} className="mr-2" />
-                    Checking In...
-                  </span>
-                ) : (
-                  'Check In'
-                )}
-              </button>
-            </div>
-          </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Row 1: Total Meow Miles (2 cols) and Season 0 Points (1 col) */}
+        <div className="bg-black/90 rounded-xl p-6 text-center border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-1 md:col-span-2">
+          <h3 className="text-xl md:text-2xl font-bold text-purple-400 mb-2">Total Meow Miles</h3>
+          <p className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 bg-clip-text text-transparent animate-pulse-slow">
+            {meowMiles.total}
+          </p>
+        </div>
 
-          <div className="bg-black/90 rounded-xl p-6 text-center border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-1 md:col-span-2">
-            <h3 className="text-xl md:text-2xl font-bold text-purple-400 mb-2">Total Meow Miles</h3>
-            <p className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 bg-clip-text text-transparent animate-pulse-slow">
-              {meowMiles.total}
-            </p>
-          </div>
-
-          <div className="hidden md:block bg-black/90 rounded-xl p-6 border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-2">
-            <h4 className="text-lg font-semibold text-purple-400 mb-2">Assets</h4>
-            <p className="text-xl md:text-2xl font-bold text-cyan-400">MON: {monBalance}</p>
-          </div>
-
-          <div className="bg-black/90 rounded-xl p-6 border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-4 md:col-span-2">
-            <h4 className="text-lg md:text-xl font-semibold text-purple-400 mb-4">Score Breakdown</h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 bg-purple-900/20 rounded-lg hover:bg-purple-900/30 transition-colors">
-                <p className="text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-500 to-cyan-400 bg-clip-text text-transparent">
-                  {meowMiles.quests}
-                </p>
-                <p className="text-sm text-gray-300">Quest Miles</p>
-              </div>
-              <div className="text-center p-4 bg-purple-900/20 rounded-lg hover:bg-purple-900/30 transition-colors">
-                <p className="text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-500 to-cyan-400 bg-clip-text text-transparent">
-                  {meowMiles.proposals}
-                </p>
-                <p className="text-sm text-gray-300">Proposal Miles</p>
-              </div>
-              <div className="text-center p-4 bg-purple-900/20 rounded-lg hover:bg-purple-900/30 transition-colors">
-                <p className="text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-500 to-cyan-400 bg-clip-text text-transparent">
-                  {meowMiles.games}
-                </p>
-                <p className="text-sm text-gray-300">Game Miles</p>
-              </div>
-              <div className="text-center p-4 bg-purple-900/20 rounded-lg hover:bg-purple-900/30 transition-colors">
-                <p className="text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-500 to-cyan-400 bg-clip-text text-transparent">
-                  {meowMiles.referrals}
-                </p>
-                <p className="text-sm text-gray-300">Referral Miles</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-black/90 rounded-xl p-6 border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-5">
-            <h4 className="text-lg font-semibold text-purple-400 mb-4">Invite Friends</h4>
+        <div className="bg-black/90 rounded-xl p-6 text-center border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-2 md:col potential-shadow duration-300 md:col-span-1">
+          <h4 className="text-lg md:text-xl font-semibold text-purple-400 mb-4">Season 0 Points</h4>
+          {userEmail ? (
+            <p className="text-2xl md:text-3xl font-bold text-cyan-400">{season0Points}</p>
+          ) : (
             <button
-              onClick={handleCopyReferralLink}
-              className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-700 to-cyan-500 text-white py-3 rounded-lg font-semibold hover:from-purple-600 hover:to-cyan-400 transition-all duration-300 mb-6"
+              onClick={handleConnectEmail}
+              className="bg-cyan-600 text-white px-6 py-2 rounded-md hover:bg-cyan-500 transition-colors font-semibold"
+              disabled={isConnectingEmail}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
-              <span>Copy Referral Link</span>
+              {isConnectingEmail ? 'Connecting...' : 'Connect Email to View Points'}
             </button>
-            <div className="space-y-4">
-              <p className="text-sm text-gray-300 font-semibold">Referred Wallets ({referralsList.length})</p>
-              {referralsList.length > 0 ? (
-                <div className="max-h-48 overflow-y-auto rounded-lg border border-purple-900/50 bg-gray-900/80 shadow-inner">
-                  <table className="w-full text-xs md:text-sm">
-                    <thead>
-                      <tr className="bg-gradient-to-r from-purple-900 to-cyan-900 sticky top-0 text-white">
-                        <th className="py-2 px-4 text-left font-semibold">Wallet</th>
-                        <th className="py-2 px-4 text-right font-semibold">Ref #</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {referralsList.map((wallet, index) => (
-                        <tr
-                          key={index}
-                          className="border-t border-purple-900/30 hover:bg-purple-900/20 transition-colors duration-200"
-                        >
-                          <td className="py-3 px-4 text-cyan-400 font-mono">{shortenAddress(wallet)}</td>
-                          <td className="py-3 px-4 text-right text-gray-300">{index + 1}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500 text-center py-4 bg-gray-900/50 rounded-lg">No referrals yet.</p>
-              )}
-            </div>
-          </div>
+          )}
+        </div>
 
-          <div className="md:order-6 md:col-span-2">
-            <Badges totalMeowMiles={meowMiles.total} />
+        {/* Row 2: Daily Check-In (2 cols) and Assets (1 col) */}
+        <div className="bg-black/90 rounded-xl p-6 border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-3 md:col-span-2">
+          <h4 className="text-lg font-semibold text-purple-400 mb-4">Daily Check-In</h4>
+          <div className="space-y-4">
+            <p className="text-center text-gray-300 text-sm md:text-base">
+              Next check-in: <span className="font-mono text-cyan-400">{countdown}</span>
+            </p>
+            <button
+              onClick={handleDailyCheckIn}
+              className="w-full bg-gradient-to-r from-purple-700 to-cyan-500 text-white py-3 rounded-lg font-semibold hover:from-purple-600 hover:to-cyan-400 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+              disabled={checkingIn || (lastCheckIn !== null && Date.now() - lastCheckIn < 24 * 60 * 60 * 1000)}
+            >
+              {checkingIn ? (
+                <span className="flex items-center justify-center">
+                  <Loader size={20} className="mr-2" />
+                  Checking In...
+                </span>
+              ) : (
+                'Check In'
+              )}
+            </button>
           </div>
         </div>
-      </main>
-    </div>
+
+        <div className="hidden md:block bg-black/90 rounded-xl p-6 border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-4 md:col-span-1">
+          <h4 className="text-lg font-semibold text-purple-400 mb-2">Assets</h4>
+          <p className="text-xl md:text-2xl font-bold text-cyan-400">MON: {monBalance}</p>
+        </div>
+
+        {/* Row 3: Score Breakdown (2 cols) and Invite Friends (1 col) */}
+        <div className="bg-black/90 rounded-xl p-6 border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-5 md:col-span-2">
+          <h4 className="text-lg md:text-xl font-semibold text-purple-400 mb-4">Score Breakdown</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-4 bg-purple-900/20 rounded-lg hover:bg-purple-900/30 transition-colors">
+              <p className="text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-500 to-cyan-400 bg-clip-text text-transparent">
+                {meowMiles.quests}
+              </p>
+              <p className="text-sm text-gray-300">Quest Miles</p>
+            </div>
+            <div className="text-center p-4 bg-purple-900/20 rounded-lg hover:bg-purple-900/30 transition-colors">
+              <p className="text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-500 to-cyan-400 bg-clip-text text-transparent">
+                {meowMiles.proposals}
+              </p>
+              <p className="text-sm text-gray-300">Proposal Miles</p>
+            </div>
+            <div className="text-center p-4 bg-purple-900/20 rounded-lg hover:bg-purple-900/30 transition-colors">
+              <p className="text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-500 to-cyan-400 bg-clip-text text-transparent">
+                {meowMiles.games}
+              </p>
+              <p className="text-sm text-gray-300">Game Miles</p>
+            </div>
+            <div className="text-center p-4 bg-purple-900/20 rounded-lg hover:bg-purple-900/30 transition-colors">
+              <p className="text-xl md:text-2xl font-bold bg-gradient-to-r from-purple-500 to-cyan-400 bg-clip-text text-transparent">
+                {meowMiles.referrals}
+              </p>
+              <p className="text-sm text-gray-300">Referral Miles</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-black/90 rounded-xl p-6 border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-6 md:col-span-1">
+          <h4 className="text-lg font-semibold text-purple-400 mb-4">Invite Friends</h4>
+          <button
+            onClick={handleCopyReferralLink}
+            className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-700 to-cyan-500 text-white py-3 rounded-lg font-semibold hover:from-purple-600 hover:to-cyan-400 transition-all duration-300 mb-6"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+              />
+            </svg>
+            <span>Copy Referral Link</span>
+          </button>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-300 font-semibold">Referred Wallets ({referralsList.length})</p>
+            {referralsList.length > 0 ? (
+              <div className="max-h-48 overflow-y-auto rounded-lg border border-purple-900/50 bg-gray-900/80 shadow-inner">
+                <table className="w-full text-xs md:text-sm">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-purple-900 to-cyan-900 sticky top-0 text-white">
+                      <th className="py-2 px-4 text-left font-semibold">Wallet</th>
+                      <th className="py-2 px-4 text-right font-semibold">Ref #</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {referralsList.map((wallet, index) => (
+                      <tr
+                        key={index}
+                        className="border-t border-purple-900/30 hover:bg-purple-900/20 transition-colors duration-200"
+                      >
+                        <td className="py-3 px-4 text-cyan-400 font-mono">{shortenAddress(wallet)}</td>
+                        <td className="py-3 px-4 text-right text-gray-300">{index + 1}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-4 bg-gray-900/50 rounded-lg">No referrals yet.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Row 4: Badges (2 cols) and Empty (1 col) */}
+        <div className="md:order-7 md:col-span-2">
+          <Badges totalMeowMiles={meowMiles.total} />
+        </div>
+
+        {/* Empty column for alignment */}
+        <div className="md:order-8 md:col-span-1"></div>
+      </div>
+    </>
   );
 }
