@@ -28,7 +28,7 @@ const INITIAL_QUESTS = [
     icon: '/quest/post.png', 
     taskUrl: 'https://twitter.com/intent/tweet?text=I%20Just%20started%20earning%20meow%20Miles%20on%20@catcentsio%20The%20degen%20playground%20built%20on%20@Monad_xyz.%20Quests,%20games,%20votes,%20and%20chaos.%20You%20in?%20https://www.catcents.io/%20#CatCents%20#Monad' 
   },
-  { id: 'like_rt', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/Like.png', taskUrl: 'https://x.com/catcentsio/status/1912899580703940891' },
+  { id: 'like_rt', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/Like.png', taskUrl: 'https://x.com/CatCentsio/status/1914732794489790663' },
   { id: 'join_catcents_server', title: 'Join Catcents Server', description: 'Join our Discord server', meowMiles: 30, completed: false, icon: '/quest/server.png', taskUrl: 'https://discord.gg/TXPbt7ztMC' },
   { id: 'join_telegram', title: 'Join Telegram', description: 'Join our Telegram channel', meowMiles: 30, completed: false, icon: '/quest/telegram.png', taskUrl: 'https://t.me/catcentsio' },
 ];
