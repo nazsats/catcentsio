@@ -207,7 +207,7 @@ export default function LandingPage() {
             className="flex justify-center mb-4"
           >
             <Image
-              src={images[4]}
+              src={images[5]}
               alt="Catcents Mascot"
               width={180}
               height={180}
