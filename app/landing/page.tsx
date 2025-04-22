@@ -2,7 +2,6 @@
 
 import { motion, useScroll, useTransform } from 'framer-motion';
 import Image from 'next/image';
-import Link from 'next/link';
 import { useRef } from 'react';
 
 // Image paths (moved to landing/ folder, hero and CTA use videos)
