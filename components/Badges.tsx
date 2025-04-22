@@ -19,7 +19,7 @@ interface BadgesProps {
   totalMeowMiles: number;
 }
 
-const CONTRACT_ADDRESS = '0x64Dc82da10b09ECE5ab77d9432c42fFB3745DcA37';
+const CONTRACT_ADDRESS = '0x64Dc82da10b09ECE5ab77d9432c42fB3745DcA37';
 const contractAbi = [
   {
     type: 'function',
