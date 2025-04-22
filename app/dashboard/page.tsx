@@ -8,9 +8,11 @@ import Badges from '@/components/Badges';
 import toast from 'react-hot-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Loader from '@/components/Loader';
-import { useAccount, useDisconnect, useBalance, useSendTransaction } from 'wagmi';
+import { useAccount, useDisconnect, useBalance, useSendTransaction, useChainId } from 'wagmi';
 import { monadTestnet } from '@reown/appkit/networks';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { createPublicClient, http } from 'viem';
+import pRetry from 'p-retry';
 
 export default function DashboardPage() {
   const { address: account, isConnecting: loading } = useAccount();
@@ -29,6 +31,7 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const chainId = useChainId();
 
   const CHECK_IN_ADDRESS = '0xfF8b7625894441C26fEd460dD21360500BF4E767';
 
@@ -186,64 +189,94 @@ export default function DashboardPage() {
       toast.error('Check-in not available yet.');
       return;
     }
+    if (chainId !== monadTestnet.id) {
+      console.warn('Dashboard: Wrong network:', chainId);
+      toast.error('Please switch to Monad Testnet in your wallet.');
+      return;
+    }
 
     setCheckingIn(true);
     const pendingToast = toast.loading('Processing check-in...');
     try {
-      sendTransaction(
-        {
-          to: CHECK_IN_ADDRESS,
-          value: BigInt(0),
-          gas: BigInt(21000),
-          gasPrice: BigInt(1000000000),
-        },
-        {
-          onSuccess: async (hash) => {
-            console.log('Dashboard: Transaction confirmed:', hash);
-            const userRef = doc(db, 'users', account);
-            await setDoc(userRef, { lastCheckIn: now, meowMiles: increment(10) }, { merge: true });
+      const publicClient = createPublicClient({
+        chain: monadTestnet,
+        transport: http(),
+      });
+      const gasEstimate = await publicClient.estimateGas({
+        account,
+        to: CHECK_IN_ADDRESS,
+        value: BigInt(0),
+      });
+      const gasPrice = await publicClient.getGasPrice();
 
-            setLastCheckIn(now);
-            startCountdown(now);
-            queryClient.invalidateQueries({ queryKey: ['userData', account] });
+      await pRetry(
+        () =>
+          sendTransaction(
+            {
+              to: CHECK_IN_ADDRESS,
+              value: BigInt(0),
+              gas: gasEstimate,
+              gasPrice,
+            },
+            {
+              onSuccess: async (hash) => {
+                console.log('Dashboard: Transaction confirmed:', hash);
+                const userRef = doc(db, 'users', account);
+                await setDoc(userRef, { lastCheckIn: now, meowMiles: increment(10) }, { merge: true });
 
-            toast.dismiss(pendingToast);
-            toast.success(
-              <div>
-                Check-in completed! You earned 10 MeowMiles.{' '}
-                <a
-                  href={`https://testnet.monadscan.com/tx/${hash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline text-cyan-400 hover:text-cyan-300"
-                >
-                  View on MonadScan
-                </a>
-              </div>,
-              { duration: 5000 }
-            );
-          },
-          onError: (err) => {
-            console.error('Dashboard: Check-in error:', err);
-            toast.dismiss(pendingToast);
-            if (err.message.includes('insufficient funds')) {
-              toast.error(
-                <div>
-                  Insufficient MON balance.{' '}
-                  <a
-                    href="https://faucet.monad.xyz/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline text-cyan-400 hover:text-cyan-300"
-                  >
-                    Claim MON tokens
-                  </a>
-                </div>,
-                { duration: 5000 }
-              );
-            } else {
-              toast.error(`Failed to check-in: ${err.message}`, { duration: 5000 });
+                setLastCheckIn(now);
+                startCountdown(now);
+                queryClient.invalidateQueries({ queryKey: ['userData', account] });
+
+                toast.dismiss(pendingToast);
+                toast.success(
+                  <div>
+                    Check-in completed! You earned 10 MeowMiles.{' '}
+                    <a
+                      href={`https://testnet.monadscan.com/tx/${hash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline text-cyan-400 hover:text-cyan-300"
+                    >
+                      View on MonadScan
+                    </a>
+                  </div>,
+                  { duration: 5000 }
+                );
+              },
+              onError: (err) => {
+                console.error('Dashboard: Check-in error:', err, JSON.stringify(err, null, 2));
+                toast.dismiss(pendingToast);
+                if (err.message.includes('Internal JSON-RPC error')) {
+                  toast.error('Reconnect your wallet or try again later.', { duration: 5000 });
+                } else if (err.message.includes('user denied') || err.message.includes('User rejected')) {
+                  toast.error('You rejected the transaction.', { duration: 5000 });
+                } else if (err.message.includes('insufficient funds')) {
+                  toast.error(
+                    <div>
+                      Insufficient MON balance.{' '}
+                      <a
+                        href="https://faucet.monad.xyz/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline text-cyan-400 hover:text-cyan-300"
+                      >
+                        Claim MON tokens
+                      </a>
+                    </div>,
+                    { duration: 5000 }
+                  );
+                } else {
+                  toast.error(`Failed to check-in: ${err.message}`, { duration: 5000 });
+                }
+              },
             }
+          ),
+        {
+          retries: 3,
+          minTimeout: 1000,
+          onFailedAttempt: (error) => {
+            console.warn(`Retry attempt failed: ${error.message}`);
           },
         }
       );
@@ -373,7 +406,7 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="bg-black/90 rounded-xl p-6 text-center border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-2 md:col potential-shadow duration-300 md:col-span-1">
+        <div className="bg-black/90 rounded-xl p-6 text-center border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-2 md:col-span-1">
           <h4 className="text-lg md:text-xl font-semibold text-purple-400 mb-4">Season 0 Points</h4>
           {userEmail ? (
             <p className="text-2xl md:text-3xl font-bold text-cyan-400">{season0Points}</p>
