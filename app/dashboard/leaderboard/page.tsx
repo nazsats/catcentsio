@@ -141,7 +141,7 @@ export default function LeaderboardPage() {
             />
           </div>
 
-          <h1 className="text-3xl md:text-4xl font-bold text-cyan-400 mb-8 text-center">
+          <h1 className="text-3xl md:text-4xl font-bold text-cyan-400 mb-8 text-left">
             Leaderboard
           </h1>
 
