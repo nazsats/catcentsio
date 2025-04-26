@@ -12,13 +12,13 @@ import { monadTestnet } from '@reown/appkit/networks';
 
 const GRID_SIZE = 10;
 const TOTAL_MINES = 5; // 5% of 100 cells
-const INITIAL_BET = 0.01; // 0.01 MON
+const INITIAL_BET = 0.001; // 0.001 MON
 const ADMIN_WALLET = '0x6D54EF5Fa17d69717Ff96D2d868e040034F26024'.toLowerCase();
 const MAX_REVEALS_PER_CLICK = 10; // Max cells revealed per click
 const MULTI_REVEAL_PROBABILITY = 0.2; // 20% chance for multiple reveals
 const MAX_EXTRA_REVEALS = 4; // Max extra cells when multi-reveal triggers
 
-const CONTRACT_ADDRESS = '0x27DF24e9Ed3F256FE4Eea32311848F5a978Ab96e';
+const CONTRACT_ADDRESS = '0xd9145CCE52D386f254917e481eB44e9943F39138';
 const contractAbi = [
   {
     type: 'function',
