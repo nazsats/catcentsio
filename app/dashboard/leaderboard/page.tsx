@@ -127,27 +127,24 @@ export default function LeaderboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-purple-950 to-black text-gray-200 flex">
-
-
       {/* Main Content */}
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-5xl mx-auto">
-          {/* Profile Section */}
-          <div className="flex justify-end mb-6">
-          <Profile
-                  account={connectedWallet ?? null}
-                  onCopyAddress={handleCopyAddress}
-                  onDisconnect={disconnect}
+          {/* Header Section: Title and Profile in the same row */}
+          <div className="flex items-center justify-between mb-8">
+            <h1 className="text-3xl md:text-4xl font-bold text-cyan-400">
+              Leaderboard
+            </h1>
+            <Profile
+              account={connectedWallet ?? null}
+              onCopyAddress={handleCopyAddress}
+              onDisconnect={disconnect}
             />
           </div>
 
-          <h1 className="text-3xl md:text-4xl font-bold text-cyan-400 mb-8 text-left">
-            Leaderboard
-          </h1>
-
           {/* Top 3 Podium with Images */}
           {!isLoading && users.length > 0 && (
-            <div className="flex justify-center mb-12 space-x-6 md:space-x-10">
+            <div className="flex justify-center mb-12 mt-16 space-x-6 md:space-x-10">
               {/* Rank 2 (Silver) */}
               {users[1] && (
                 <motion.div
@@ -156,7 +153,7 @@ export default function LeaderboardPage() {
                   animate={{ scale: 1 }}
                   transition={{ duration: 0.5, delay: 0.2 }}
                 >
-                  <span className="text-2xl md:text-3xl absolute -top-8 md:-top-10">🥈</span>
+                  <span className="text-2xl md:text-3xl absolute -top-10 md:-top-10">🥈</span>
                   <div className="relative w-24 h-24 md:w-28 md:h-28">
                     <Image
                       src="/leaderboard/2.png"
@@ -179,7 +176,7 @@ export default function LeaderboardPage() {
                   animate={{ scale: 1 }}
                   transition={{ duration: 0.5 }}
                 >
-                  <span className="text-3xl md:text-4xl absolute -top-10 md:-top-12">🥇</span>
+                  <span className="text-3xl md:text-4xl absolute -top-12 md:-top-10">🥇</span>
                   <div className="relative w-28 h-28 md:w-32 md:h-32">
                     <Image
                       src="/leaderboard/1.png"
@@ -202,7 +199,7 @@ export default function LeaderboardPage() {
                   animate={{ scale: 1 }}
                   transition={{ duration: 0.5, delay: 0.4 }}
                 >
-                  <span className="text-2xl md:text-3xl absolute -top-8 md:-top-10">🥉</span>
+                  <span className="text-2xl md:text-3xl absolute -top-10 md:-top-10">🥉</span>
                   <div className="relative w-24 h-24 md:w-28 md:h-28">
                     <Image
                       src="/leaderboard/3.png"
