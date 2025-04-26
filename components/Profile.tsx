@@ -125,7 +125,7 @@ export default function Profile({ account, onCopyAddress, onDisconnect }: Profil
               />
             </a>
             <a
-              href="https://docs.catcents.io/"
+              href="https://catcents.gitbook.io/catcents"
               target="_blank"
               rel="noopener noreferrer"
               className="text-purple-400 hover:text-purple-300 transition-colors"
