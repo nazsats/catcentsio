@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, increment, DocumentSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, increment } from 'firebase/firestore';
 import Profile from '@/components/Profile';
 import Badges from '@/components/Badges';
 import toast from 'react-hot-toast';
