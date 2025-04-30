@@ -35,7 +35,6 @@ export default function DashboardPage() {
 
   const CHECK_IN_ADDRESS = '0xfF8b7625894441C26fEd460dD21360500BF4E767';
 
-  // Initialize userEmail from localStorage on mount
   useEffect(() => {
     const storedEmail = localStorage.getItem('userEmail');
     if (storedEmail) {
@@ -44,7 +43,6 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Handle OAuth callback for email connection
   useEffect(() => {
     const email = searchParams.get('email');
     const points = searchParams.get('points');
@@ -65,18 +63,25 @@ export default function DashboardPage() {
     }
   }, [searchParams, account, queryClient, router]);
 
-  // Log Season 0 Points Card data
   useEffect(() => {
     console.log('Season 0 Points Card:', { userEmail, season0Points });
   }, [userEmail, season0Points]);
 
   const fetchUserData = async (address: string) => {
+    console.log('fetchUserData (Dashboard): Fetching data for account:', address);
     try {
       const userRef = doc(db, 'users', address);
-      const userSnap = await getDoc(userRef);
+      const userSnap = await Promise.race([
+        getDoc(userRef),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Firestore getDoc timed out')), 10000)
+        ),
+      ]);
+
       if (userSnap.exists()) {
         const data = userSnap.data();
         const referralCount = data.referrals?.length || 0;
+        console.log('fetchUserData (Dashboard): Firebase data:', data);
         return {
           quests: Math.floor(data.meowMiles || 0),
           proposals: Math.floor(data.proposalsGmeow || 0),
@@ -94,6 +99,7 @@ export default function DashboardPage() {
           email: data.email || null,
         };
       } else {
+        console.log('fetchUserData (Dashboard): No user data found in Firestore for address:', address);
         return {
           quests: 0,
           proposals: 0,
@@ -107,7 +113,7 @@ export default function DashboardPage() {
         };
       }
     } catch (error) {
-      console.error('fetchUserData: Error fetching user data:', error);
+      console.error('fetchUserData (Dashboard): Error fetching user data:', error);
       throw error;
     }
   };
@@ -140,8 +146,7 @@ export default function DashboardPage() {
         localStorage.setItem('userEmail', userData.email);
         console.log('Dashboard: Set userEmail from Firestore:', userData.email);
       }
-      console.log('Dashboard: Updated season0Points:', userData.season0Points, 'email:', userData.email);
-      if (userData.lastCheckIn) startCountdown(userData.lastCheckIn);
+      console.log('Dashboard: Updated season0Points:', userData.season0Points, 'email:', userData.email, 'referralsList:', userData.referralsList);
     }
     if (userDataError) {
       console.error('Dashboard: userData query error:', userDataError);
@@ -377,7 +382,7 @@ export default function DashboardPage() {
     );
   }
 
-  console.log('Dashboard: Rendering main content', { season0Points, userEmail });
+  console.log('Dashboard: Rendering main content', { season0Points, userEmail, referralsList });
   return (
     <>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
@@ -387,7 +392,6 @@ export default function DashboardPage() {
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Row 1: Total Meow Miles (2 cols) and Season 0 Points (1 col) */}
         <div className="bg-black/90 rounded-xl p-6 text-center border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-1 md:col-span-2">
           <h3 className="text-xl md:text-2xl font-bold text-purple-400 mb-2">Total Meow Miles</h3>
           <p className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 bg-clip-text text-transparent animate-pulse-slow">
@@ -410,7 +414,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Row 2: Daily Check-In (2 cols) and Assets (1 col) */}
         <div className="bg-black/90 rounded-xl p-6 border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-3 md:col-span-2">
           <h4 className="text-lg font-semibold text-purple-400 mb-4">Daily Check-In</h4>
           <div className="space-y-4">
@@ -439,7 +442,6 @@ export default function DashboardPage() {
           <p className="text-xl md:text-2xl font-bold text-cyan-400">MON: {monBalance}</p>
         </div>
 
-        {/* Row 3: Score Breakdown (2 cols) and Invite Friends (1 col) */}
         <div className="bg-black/90 rounded-xl p-6 border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-5 md:col-span-2">
           <h4 className="text-lg md:text-xl font-semibold text-purple-400 mb-4">Score Breakdown</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -522,12 +524,10 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Row 4: Badges (2 cols) and Empty (1 col) */}
         <div className="md:order-7 md:col-span-2">
           <Badges totalMeowMiles={meowMiles.total} />
         </div>
 
-        {/* Empty column for alignment */}
         <div className="md:order-8 md:col-span-1"></div>
       </div>
     </>

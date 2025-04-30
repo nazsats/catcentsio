@@ -19,15 +19,18 @@ export default function LandingPage() {
   const buttonRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
 
-  // Handle referral code from URL
   useEffect(() => {
     const queryParams = new URLSearchParams(window.location.search);
     const ref = queryParams.get('ref');
-    setRefCode(ref);
-    console.log('Ref code:', ref);
+    if (ref) {
+      setRefCode(ref);
+      sessionStorage.setItem('referralCode', ref);
+      console.log('Referral code captured and stored:', ref);
+    } else {
+      console.log('No referral code found in URL');
+    }
   }, []);
 
-  // Redirect to dashboard if connected
   useEffect(() => {
     console.log('Checking redirect - Account:', account, 'Loading:', loading);
     if (account && !loading) {
@@ -36,7 +39,6 @@ export default function LandingPage() {
     }
   }, [account, loading, router]);
 
-  // GSAP animations
   useEffect(() => {
     if (account || loading) {
       console.log('Account exists or loading, skipping animations');
@@ -54,7 +56,6 @@ export default function LandingPage() {
     }
 
     const chars = titleElement?.querySelectorAll('.split-char');
-
     const tl = gsap.timeline({ delay: 0.5 });
 
     if (chars && chars.length) {
@@ -99,7 +100,7 @@ export default function LandingPage() {
     }
   }, [account, loading]);
 
-  console.log('Rendering page - Loading:', loading, 'Account:', account);
+  console.log('Rendering page - Loading:', loading, 'Account:', account, 'RefCode:', refCode);
 
   return (
     <div className="relative min-h-screen overflow-hidden">

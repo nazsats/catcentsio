@@ -1,24 +1,22 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { db } from '../../../lib/firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import Profile from '../../../components/Profile';
-import confetti from 'canvas-confetti';
-import { useAccount, useDisconnect } from 'wagmi';
-import toast, { Toaster } from 'react-hot-toast';
-import Image from 'next/image';
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
+import { db } from '../../../lib/firebase'
+import { doc, setDoc, getDoc } from 'firebase/firestore'
+import Profile from '../../../components/Profile'
+import confetti from 'canvas-confetti'
+import { useAccount, useDisconnect } from 'wagmi'
+import toast, { Toaster } from 'react-hot-toast'
+import Image from 'next/image'
 
-const DEPLOYED_DOMAIN = 'https://catcents.io';
+const DEPLOYED_DOMAIN = 'https://catcents.io'
 
 const INITIAL_QUESTS = [
   { id: 'connect_twitter', title: 'Connect Twitter', description: 'Link your Twitter account', meowMiles: 30, completed: false, icon: '/quest/link.png' },
   { id: 'connect_discord', title: 'Connect Discord', description: 'Link your Discord account', meowMiles: 30, completed: false, icon: '/quest/discord.png' },
   { id: 'follow_twitter', title: 'Follow Twitter', description: 'Follow @catcentsio on Twitter', meowMiles: 30, completed: false, icon: '/quest/x.png', taskUrl: 'https://twitter.com/catcentsio' },
-  // New task at position 4 (index 3)
   { id: 'follow_anselmeow', title: 'Follow Anselmeow', description: 'Follow @Anselmeow_ on Twitter', meowMiles: 30, completed: false, icon: '/quest/x.png', taskUrl: 'https://x.com/Anselmeow_' },
-  // Updated 4th task (now at index 4, position 5) with new tweet content
   { 
     id: 'share_post', 
     title: 'Share a Post', 
@@ -26,103 +24,123 @@ const INITIAL_QUESTS = [
     meowMiles: 30, 
     completed: false, 
     icon: '/quest/post.png', 
-    taskUrl: 'https://twitter.com/intent/tweet?text=I%20Just%20started%20earning%20meow%20Miles%20on%20@catcentsio%20The%20degen%20playground%20built%20on%20@Monad_xyz.%20Quests,%20games,%20votes,%20and%20chaos.%20You%20in?%20https://www.catcents.io/%20#CatCents%20#Monad' 
+    taskUrl: 'https://twitter.com/intent/tweet?text=I%20Just%20started%20earning%20meow%20Miles%20on%20@catcentsio%20The%20degen%20playground%20built%20on%20@Monad_xyz.%20Quests,%20games,%20votes,%20and%20chaos.%20You%20in?%20https://www.catcents.io/%20#CatCents%20#Monad'
   },
-  { id: 'like_rt', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/Like.png', taskUrl: 'https://x.com/CatCentsio/status/1914732794489790663' },
+  { id: 'like_rt_1', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/Like.png', taskUrl: 'https://x.com/CatCentsio/status/1914732794489790663' },
+  { id: 'like_rt_2', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/Like.png', taskUrl: 'https://x.com/CatCentsio/status/1912899580703940891?t=foyVa-E-zlfDZx4b-lo0IA&s=19' },
+  { id: 'like_rt_3', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/Like.png', taskUrl: 'https://x.com/CatCentsio/status/1916909155111342482?t=G5xpvxgx0uXmffQtVCqpYg&s=19' },
+  { id: 'like_rt_4', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/Like.png', taskUrl: 'https://x.com/CatCentsio/status/1916747840446927058?t=7iENoJ8EwPQgCdCTMcsMUA&s=19' },
+  { id: 'check_testnet_guide', title: 'Check Testnet Guide', description: 'Read the Catcents Testnet Guide', meowMiles: 30, completed: false, icon: '/quest/guide.png', taskUrl: 'https://medium.com/@catcentsio/catcents-how-to-testnet-48de3fa6cca2' },
   { id: 'join_catcents_server', title: 'Join Catcents Server', description: 'Join our Discord server', meowMiles: 30, completed: false, icon: '/quest/server.png', taskUrl: 'https://discord.gg/TXPbt7ztMC' },
   { id: 'join_telegram', title: 'Join Telegram', description: 'Join our Telegram channel', meowMiles: 30, completed: false, icon: '/quest/telegram.png', taskUrl: 'https://t.me/catcentsio' },
-];
+]
+
 export default function QuestsPage() {
-  const { address: account, isConnecting: loading } = useAccount();
-  const { disconnect } = useDisconnect();
-  const [quests, setQuests] = useState(INITIAL_QUESTS);
-  const [meowMiles, setMeowMiles] = useState(0);
-  const [referrals, setReferrals] = useState(0);
-  const [referralLink, setReferralLink] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [processingQuestId, setProcessingQuestId] = useState<string | null>(null);
-  const router = useRouter();
-  const pathname = usePathname();
-  const [hasRedirected, setHasRedirected] = useState(false);
+  const { address: account, isConnecting: loading } = useAccount()
+  const { disconnect } = useDisconnect()
+  const [quests, setQuests] = useState(INITIAL_QUESTS)
+  const [meowMiles, setMeowMiles] = useState(0)
+  const [referrals, setReferrals] = useState(0)
+  const [referralLink, setReferralLink] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [processingQuestId, setProcessingQuestId] = useState<string | null>(null)
+  const router = useRouter()
+  const pathname = usePathname()
+  const hasRedirected = useRef(false) // Use useRef to prevent re-renders
+
+  // Track effect runs to detect loops
+  const effectRunCount = useRef(0)
 
   const fetchUserData = async (address: string) => {
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      const userRef = doc(db, 'users', address);
-      const userSnap = await getDoc(userRef);
+      console.log('fetchUserData: Starting for address:', address)
+      const userRef = doc(db, 'users', address)
+      const userSnap = await getDoc(userRef)
+      
       if (userSnap.exists()) {
-        const data = userSnap.data();
-        console.log('Fetched Firebase data:', data);
-        const storedQuests = data.quests || {};
+        const data = userSnap.data()
+        console.log('fetchUserData: Existing user data:', data)
+        const storedQuests = data.quests || {}
         setQuests(
           INITIAL_QUESTS.map((quest) => ({
             ...quest,
             completed: storedQuests[quest.id] || false,
           }))
-        );
-        setMeowMiles(data.meowMiles || 0);
-        setReferrals(data.referrals?.length || 0);
+        )
+        setMeowMiles(data.meowMiles || 0)
+        setReferrals(data.referrals?.length || 0)
 
-        const newReferralLink = `${DEPLOYED_DOMAIN}/?ref=${address}`;
-        setReferralLink(newReferralLink);
+        const newReferralLink = `${DEPLOYED_DOMAIN}/?ref=${address}`
+        setReferralLink(newReferralLink)
 
         if (data.referralLink && data.referralLink !== newReferralLink) {
-          await setDoc(userRef, { referralLink: newReferralLink }, { merge: true });
+          await setDoc(userRef, { referralLink: newReferralLink }, { merge: true })
+          console.log('fetchUserData: Updated referral link:', newReferralLink)
         }
       } else {
-        const newReferralLink = `${DEPLOYED_DOMAIN}/?ref=${address}`;
+        console.log('fetchUserData: Creating new user document for:', address)
+        const newReferralLink = `${DEPLOYED_DOMAIN}/?ref=${address}`
+        const referralCode = sessionStorage.getItem('referralCode')
+        console.log('fetchUserData: Referral code retrieved:', referralCode)
+
         await setDoc(userRef, {
           walletAddress: address,
           meowMiles: 0,
           referrals: [],
           quests: {},
           referralLink: newReferralLink,
-        });
-        setReferralLink(newReferralLink);
+          referralCode: referralCode || null,
+        })
+        console.log('fetchUserData: New user document created:', address)
+
+        setReferralLink(newReferralLink)
+        sessionStorage.removeItem('referralCode')
+        console.log('fetchUserData: Cleared referral code from sessionStorage')
       }
     } catch (error) {
-      console.error('Error fetching user data:', error);
-      toast.error('Failed to load quests. Please try again.');
+      console.error('fetchUserData: Error fetching user data:', error)
+      toast.error('Failed to load quests. Please try again.')
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
-  const completeQuest = async (questId: string) => {
+  const completeQuest = useCallback(async (questId: string) => {
     if (!account) {
-      console.error('completeQuest: No account available');
-      return;
+      console.error('completeQuest: No account available')
+      return
     }
-    const quest = quests.find((q) => q.id === questId);
+    const quest = quests.find((q) => q.id === questId)
     if (!quest) {
-      console.error(`completeQuest: Quest ${questId} not found`);
-      return;
+      console.error(`completeQuest: Quest ${questId} not found`)
+      return
     }
     if (quest.completed) {
-      console.log(`completeQuest: Quest ${questId} already completed locally`);
-      return;
+      console.log(`completeQuest: Quest ${questId} already completed locally`)
+      return
     }
 
-    const userRef = doc(db, 'users', account);
-    const userSnap = await getDoc(userRef);
-    const currentData = userSnap.exists() ? userSnap.data() : {};
-    const currentQuests = currentData.quests || {};
+    const userRef = doc(db, 'users', account)
+    const userSnap = await getDoc(userRef)
+    const currentData = userSnap.exists() ? userSnap.data() : {}
+    const currentQuests = currentData.quests || {}
     if (currentQuests[questId]) {
-      console.log(`Quest ${questId} already completed in Firebase`);
-      return;
+      console.log(`completeQuest: Quest ${questId} already completed in Firebase`)
+      return
     }
 
-    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
 
-    const newQuests = quests.map((q) => (q.id === questId ? { ...q, completed: true } : q));
-    const newMeowMiles = (currentData.meowMiles || 0) + quest.meowMiles;
+    const newQuests = quests.map((q) => (q.id === questId ? { ...q, completed: true } : q))
+    const newMeowMiles = (currentData.meowMiles || 0) + quest.meowMiles
 
-    setQuests(newQuests);
-    setMeowMiles(newMeowMiles);
-    setProcessingQuestId(null);
+    setQuests(newQuests)
+    setMeowMiles(newMeowMiles)
+    setProcessingQuestId(null)
 
     try {
-      console.log(`Completing quest ${questId}: Updating Firebase with ${newMeowMiles} Meow Miles`);
+      console.log(`completeQuest: Completing quest ${questId}: Updating Firebase with ${newMeowMiles} Meow Miles`)
       await setDoc(
         userRef,
         {
@@ -130,137 +148,147 @@ export default function QuestsPage() {
           quests: { ...currentQuests, [questId]: true },
         },
         { merge: true }
-      );
-      toast.success(`${quest.title} completed! +${quest.meowMiles} Meow Miles`);
+      )
+      toast.success(`${quest.title} completed! +${quest.meowMiles} Meow Miles`)
     } catch (error) {
-      console.error('Failed to complete quest:', error);
-      toast.error('Failed to complete quest.');
-      setQuests(quests); // Revert local state on failure
+      console.error('completeQuest: Failed to complete quest:', error)
+      toast.error('Failed to complete quest.')
+      setQuests(quests)
     } finally {
-      sessionStorage.removeItem('pendingQuest');
+      sessionStorage.removeItem('pendingQuest')
     }
-  };
+  }, [account, quests]) // Removed setQuests, setMeowMiles, setProcessingQuestId to prevent loop
 
   const handleTaskStart = async (quest: typeof INITIAL_QUESTS[0]) => {
     if (quest.completed || processingQuestId) {
-      console.log('handleTaskStart: Quest completed or processing', { questId: quest.id, processingQuestId });
-      return;
+      console.log('handleTaskStart: Quest completed or processing', { questId: quest.id, processingQuestId })
+      return
     }
 
-    setProcessingQuestId(quest.id);
+    setProcessingQuestId(quest.id)
 
     if (quest.id === 'connect_twitter') {
-      window.location.href = `/api/twitter/auth?walletAddress=${account}`;
+      window.location.href = `/api/twitter/auth?walletAddress=${account}`
     } else if (quest.id === 'connect_discord') {
-      window.location.href = `/api/discord/auth?walletAddress=${account}`;
+      window.location.href = `/api/discord/auth?walletAddress=${account}`
     } else if (quest.taskUrl) {
-      window.open(quest.taskUrl, '_blank');
-      await new Promise((resolve) => setTimeout(resolve, 10000));
-      await completeQuest(quest.id);
+      window.open(quest.taskUrl, '_blank')
+      await new Promise((resolve) => setTimeout(resolve, 10000))
+      await completeQuest(quest.id)
     }
-  };
+  }
 
   const handleCopyReferralLink = () => {
     if (account) {
-      const referralLinkToCopy = `${DEPLOYED_DOMAIN}/?ref=${account}`;
-      navigator.clipboard.writeText(referralLinkToCopy);
-      toast.success('Referral link copied!');
+      const referralLinkToCopy = `${DEPLOYED_DOMAIN}/?ref=${account}`
+      navigator.clipboard.writeText(referralLinkToCopy)
+      toast.success('Referral link copied!')
     }
-  };
+  }
 
   const handleCopyAddress = () => {
     if (account) {
-      navigator.clipboard.writeText(account);
-      toast.success('Address copied!');
+      navigator.clipboard.writeText(account)
+      toast.success('Address copied!')
     }
-  };
+  }
 
-  // Navigation and auth handling
   useEffect(() => {
-    console.log('Navigation useEffect - Account:', account, 'Loading:', loading, 'HasRedirected:', hasRedirected, 'Pathname:', pathname);
+    effectRunCount.current += 1
+    console.log(`Navigation useEffect run count: ${effectRunCount.current} - Account: ${account}, Loading: ${loading}, Pathname: ${pathname}`)
 
-    if (loading) return;
+    if (effectRunCount.current > 10) {
+      console.error('Potential infinite loop detected in Navigation useEffect')
+      return
+    }
 
-    if (!account && !hasRedirected) {
-      console.log('Redirecting to / (no account)');
-      setHasRedirected(true);
-      router.push('/');
-      return;
+    if (loading) {
+      console.log('Navigation useEffect: Skipping due to loading')
+      return
+    }
+
+    if (!account && !hasRedirected.current) {
+      console.log('Navigation useEffect: Redirecting to / (no account)')
+      hasRedirected.current = true
+      router.push('/')
+      return
     }
 
     if (account) {
-      fetchUserData(account);
+      fetchUserData(account)
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const success = urlParams.get('success');
-      const error = urlParams.get('error');
+      const urlParams = new URLSearchParams(window.location.search)
+      const success = urlParams.get('success')
+      const error = urlParams.get('error')
 
       if (success) {
-        console.log('Processing success param:', success);
+        console.log('Navigation useEffect: Processing success param:', success)
         if (success === 'twitter_connected') {
-          toast.success('Twitter connected successfully!');
-          completeQuest('connect_twitter');
+          toast.success('Twitter connected successfully!')
+          completeQuest('connect_twitter')
         } else if (success === 'discord_connected') {
-          toast.success('Discord connected successfully!');
-          completeQuest('connect_discord');
+          toast.success('Discord connected successfully!')
+          completeQuest('connect_discord')
         }
-        if (pathname !== '/dashboard/quests') {
-          console.log('Replacing to /dashboard/quests after auth');
-          router.replace('/dashboard/quests');
+        if (pathname !== '/dashboard/quests' && !hasRedirected.current) {
+          console.log('Navigation useEffect: Replacing to /dashboard/quests after auth')
+          hasRedirected.current = true
+          router.replace('/dashboard/quests')
         }
-        return;
+        return
       }
 
       if (error) {
-        console.log('Processing error param:', error);
+        console.log('Navigation useEffect: Processing error param:', error)
         if (error === 'twitter_failed') {
-          toast.error('Failed to connect Twitter.');
+          toast.error('Failed to connect Twitter.')
         } else if (error === 'discord_failed') {
-          toast.error('Failed to connect Discord.');
+          toast.error('Failed to connect Discord.')
         }
       }
 
-      const returnUrl = sessionStorage.getItem('returnUrl');
-      if (returnUrl && pathname !== returnUrl) {
-        console.log(`Redirecting to stored returnUrl: ${returnUrl}`);
-        router.replace(returnUrl);
-        return;
+      const returnUrl = sessionStorage.getItem('returnUrl')
+      if (returnUrl && pathname !== returnUrl && !hasRedirected.current) {
+        console.log(`Navigation useEffect: Redirecting to stored returnUrl: ${returnUrl}`)
+        hasRedirected.current = true
+        router.replace(returnUrl)
+        return
       }
 
-      if (pathname === '/dashboard') {
-        console.log('Force redirecting to /dashboard/quests from /dashboard');
-        router.replace('/dashboard/quests');
+      if (pathname === '/dashboard' && !hasRedirected.current) {
+        console.log('Navigation useEffect: Force redirecting to /dashboard/quests from /dashboard')
+        hasRedirected.current = true
+        router.replace('/dashboard/quests')
       }
     }
-  }, [account, loading, router, hasRedirected, pathname]);
+  }, [account, loading, pathname]) // Removed router, hasRedirected, completeQuest to stabilize
 
-  // Pending quest handling
   useEffect(() => {
-    if (!account || loading) return;
+    if (!account || loading) return
 
-    const pendingQuest = sessionStorage.getItem('pendingQuest');
+    const pendingQuest = sessionStorage.getItem('pendingQuest')
     if (pendingQuest) {
       try {
-        const { questId, startTime } = JSON.parse(pendingQuest);
-        const quest = quests.find((q) => q.id === questId);
+        const { questId, startTime } = JSON.parse(pendingQuest)
+        const quest = quests.find((q) => q.id === questId)
         if (quest && !quest.completed) {
-          const elapsed = Date.now() - startTime;
+          const elapsed = Date.now() - startTime
           if (elapsed >= 10000) {
-            console.log(`Completing pending quest ${questId} from sessionStorage`);
-            completeQuest(questId);
+            console.log(`PendingQuest useEffect: Completing pending quest ${questId} from sessionStorage`)
+            completeQuest(questId)
           } else {
-            const remaining = 10000 - elapsed;
-            console.log(`Waiting ${remaining}ms to complete pending quest ${questId}`);
-            setProcessingQuestId(questId);
-            setTimeout(() => completeQuest(questId), remaining);
+            const remaining = 10000 - elapsed
+            console.log(`PendingQuest useEffect: Waiting ${remaining}ms to complete pending quest ${questId}`)
+            setProcessingQuestId(questId)
+            setTimeout(() => completeQuest(questId), remaining)
           }
         }
       } catch (error) {
-        console.error('Error processing pending quest:', error);
-        sessionStorage.removeItem('pendingQuest');
+        console.error('PendingQuest useEffect: Error processing pending quest:', error)
+        sessionStorage.removeItem('pendingQuest')
       }
     }
-  }, [account, loading, quests]);
+  }, [account, loading, completeQuest]) // Removed quests to prevent loop
 
   if (loading || isLoading) {
     return (
@@ -269,10 +297,10 @@ export default function QuestsPage() {
           <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
         </svg>
       </div>
-    );
+    )
   }
 
-  if (!account) return null;
+  if (!account) return null
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-black to-purple-950 text-white">
@@ -288,7 +316,6 @@ export default function QuestsPage() {
         </div>
 
         <div className="space-y-8 md:space-y-10">
-          {/* Meow Miles Section */}
           <div className="text-center bg-black/80 rounded-xl p-6 md:p-8 border border-purple-900/50 shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 transition-shadow duration-300">
             <h2 className="text-2xl md:text-3xl font-semibold text-purple-300 mb-4">Your Meow Miles</h2>
             <p className="text-5xl md:text-6xl font-extrabold bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 bg-clip-text text-transparent animate-bounce-slow">
@@ -297,7 +324,6 @@ export default function QuestsPage() {
             <p className="text-sm md:text-base text-gray-400 mt-2">Complete quests to earn more!</p>
           </div>
 
-          {/* Quests Section */}
           <div>
             <h3 className="text-xl md:text-2xl font-semibold mb-6 text-purple-300">Quests</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -316,8 +342,8 @@ export default function QuestsPage() {
                       height={48}
                       className="w-12 h-12 object-contain"
                       onError={(e) => {
-                        console.error(`Failed to load image: ${quest.icon}`);
-                        e.currentTarget.src = '/quest/fallback.png';
+                        console.error(`Failed to load image: ${quest.icon}`)
+                        e.currentTarget.src = '/quest/fallback.png'
                       }}
                     />
                     <div className="flex-1">
@@ -354,7 +380,6 @@ export default function QuestsPage() {
             </div>
           </div>
 
-          {/* Referral Section */}
           <div>
             <h3 className="text-xl md:text-2xl font-semibold mb-6 text-purple-300">Refer Friends</h3>
             <div className="bg-gradient-to-br from-black/90 to-purple-950/90 rounded-xl p-6 md:p-8 border border-purple-700 shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 transition-shadow duration-300">
@@ -401,5 +426,5 @@ export default function QuestsPage() {
         </div>
       </main>
     </div>
-  );
+  )
 }
