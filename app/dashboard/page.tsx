@@ -71,32 +71,22 @@ export default function DashboardPage() {
   }, [userEmail, season0Points]);
 
   const fetchUserData = async (address: string) => {
-    console.log('fetchUserData: Fetching data for account:', address);
     try {
       const userRef = doc(db, 'users', address);
-      const userSnap = (await Promise.race([
-        getDoc(userRef),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Firestore getDoc timed out')), 10000)
-        ),
-      ]).catch((error) => {
-        console.error('fetchUserData: Firestore getDoc error:', error);
-        throw error;
-      })) as DocumentSnapshot;
-
+      const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
         const data = userSnap.data();
-        console.log('fetchUserData: Firebase data:', data);
+        const referralCount = data.referrals?.length || 0;
         return {
           quests: Math.floor(data.meowMiles || 0),
           proposals: Math.floor(data.proposalsGmeow || 0),
           games: Math.floor(data.gamesGmeow || 0),
-          referrals: Math.floor(data.referrals?.length || 0),
+          referrals: referralCount * 500,
           total: Math.floor(
             (data.meowMiles || 0) +
               (data.proposalsGmeow || 0) +
               (data.gamesGmeow || 0) +
-              (data.referrals?.length || 0)
+              (referralCount * 500)
           ),
           lastCheckIn: data.lastCheckIn || null,
           referralsList: data.referrals || [],
@@ -104,7 +94,6 @@ export default function DashboardPage() {
           email: data.email || null,
         };
       } else {
-        console.log('fetchUserData: No user data found in Firestore for address:', address);
         return {
           quests: 0,
           proposals: 0,
