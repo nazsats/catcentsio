@@ -256,13 +256,7 @@ export default function DashboardPage() {
       return
     }
 
-    if (account) {
-      if (pathname === '/dashboard' && !hasRedirected.current) {
-        console.log('Dashboard useEffect: Redirecting to /dashboard/quests')
-        hasRedirected.current = true
-        router.replace('/dashboard/quests')
-      }
-    }
+    // Removed the redirect to /dashboard/quests
   }, [account, loading, router, pathname])
 
   const handleDailyCheckIn = async () => {
@@ -463,7 +457,7 @@ export default function DashboardPage() {
     console.log('Dashboard: Rendering error state due to userDataError:', userDataError.message)
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-black to-purple-950 text-white">
-        <div className="text-center">
+                <div className="text-center">
           <h2 className="text-xl text-red-400">Failed to load dashboard</h2>
           <p className="text-gray-300">Error: {userDataError.message || 'Unknown error'}</p>
           <p className="text-gray-300">Please try refreshing the page or reconnecting your wallet.</p>
@@ -494,6 +488,12 @@ export default function DashboardPage() {
             <p className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 bg-clip-text text-transparent animate-pulse-slow">
               {meowMiles.total}
             </p>
+            <button
+              onClick={() => router.push('/dashboard/quests')}
+              className="mt-4 bg-gradient-to-r from-purple-700 to-cyan-500 text-white py-2 px-4 rounded-lg font-semibold hover:from-purple-600 hover:to-cyan-400 transition-all duration-300"
+            >
+              Go to Quests
+            </button>
           </div>
 
           <div className="bg-black/90 rounded-xl p-6 text-center border border-purple-900 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 transition-shadow duration-300 md:order-2 md:col-span-1">
