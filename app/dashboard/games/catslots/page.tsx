@@ -1,0 +1,354 @@
+// app/dashboard/games/catslots/page.tsx
+'use client';
+
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { motion } from 'framer-motion';
+import { doc, getDoc, runTransaction, increment } from 'firebase/firestore';
+import { db } from '../../../../lib/firebase';
+import Profile from '../../../../components/Profile';
+import toast, { Toaster } from 'react-hot-toast';
+import { useAccount, useDisconnect, useWriteContract, useSwitchChain, useBalance } from 'wagmi';
+import { monadTestnet } from '@reown/appkit/networks';
+import Confetti from 'react-confetti';
+
+const SYMBOLS = ['/cats/cat1.png', '/cats/cat2.png', '/cats/cat3.png', '/cats/wild.png', '/cats/fish.png'];
+const WILD_SYMBOL = '/cats/wild.png';
+const REEL_SIZE = 3;
+const SPIN_DURATION = 2500;
+const INITIAL_BET = 0.001;
+const CONTRACT_ADDRESS = '0xd9145CCE52D386f254917e481eB44e9943F39138';
+const contractAbi = [
+  { type: 'function', name: 'placeBet', inputs: [], outputs: [], stateMutability: 'payable' },
+  { type: 'event', name: 'BetPlaced', inputs: [{ name: 'player', type: 'address', indexed: true }, { name: 'amount', type: 'uint256', indexed: false }, { name: 'timestamp', type: 'uint256', indexed: false }] },
+];
+
+interface Reel {
+  symbols: string[];
+  offset: number;
+}
+
+export default function CatSlots() {
+  const { address, isConnecting } = useAccount();
+  const { disconnect } = useDisconnect();
+  const { switchChain } = useSwitchChain();
+  const { writeContract, isPending } = useWriteContract();
+  const { data: balanceData } = useBalance({ address, chainId: monadTestnet.id });
+  const [reels, setReels] = useState<Reel[]>([]);
+  const [gameStatus, setGameStatus] = useState<'idle' | 'spinning' | 'won' | 'lost'>('idle');
+  const [points, setPoints] = useState(0);
+  const [bestScore, setBestScore] = useState(0);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const router = useRouter();
+
+  const initializeReels = useCallback(() => {
+    const newReels = Array(REEL_SIZE)
+      .fill(null)
+      .map(() => ({
+        symbols: Array(100).fill(null).map(() => SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]),
+        offset: 0,
+      }));
+    setReels(newReels);
+  }, []);
+
+  useEffect(() => {
+    if (isConnecting) return;
+    if (!address) return router.push('/');
+    initializeReels();
+    (async () => {
+      try {
+        const userRef = doc(db, 'users', address);
+        const userDoc = await getDoc(userRef);
+        setBestScore(userDoc.exists() ? userDoc.data().catslotsBestScore || 0 : 0);
+      } catch {
+        toast.error('Failed to load game stats.');
+      }
+    })();
+  }, [address, isConnecting, router, initializeReels]);
+
+  const playSound = (type: 'spin' | 'win') => new Audio(`/sounds/${type}.mp3`).play().catch((err) => console.error('Audio failed:', err));
+
+  const cashOut = async (currentPoints: number) => {
+    if (!address || demoMode) return;
+    const pendingToast = toast.loading('Cashing out...');
+    try {
+      await runTransaction(db, async (transaction) => {
+        const userRef = doc(db, 'users', address);
+        const userDoc = await transaction.get(userRef);
+        const data = userDoc.data() || {};
+        const newScore = Math.max(data.catslotsBestScore || 0, currentPoints);
+        transaction.set(userRef, { catslotsBestScore: newScore, gamesGmeow: increment(currentPoints), updatedAt: new Date().toISOString() }, { merge: true });
+      });
+      setBestScore(currentPoints);
+      toast.dismiss(pendingToast);
+      toast.success(`Cashed out ${currentPoints} Meow Miles!`);
+    } catch {
+      toast.dismiss(pendingToast);
+      toast.error('Failed to cash out.');
+    }
+  };
+
+  const spinReels = useCallback(() => {
+    if (gameStatus === 'spinning') return;
+    setGameStatus('spinning');
+    setShowConfetti(false);
+    setPoints(0);
+    playSound('spin');
+
+    const newReels = reels.map((reel) => ({
+      ...reel,
+      offset: (reel.offset + Math.floor(Math.random() * 10) + 10),
+      symbols: Array(100).fill(null).map(() => SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]),
+    }));
+
+    setReels(newReels);
+
+    setTimeout(() => {
+      const alignedReels = newReels.map((reel) => ({
+        ...reel,
+        offset: Math.floor(reel.offset / reel.symbols.length) * reel.symbols.length + 1,
+      }));
+      setReels(alignedReels);
+
+      const grid = alignedReels.map((reel) => [reel.symbols[0], reel.symbols[1], reel.symbols[2]]);
+
+      let winPoints = 0;
+      let winType = '';
+
+      // Straight line (middle row)
+      const middleRow = [grid[0][1], grid[1][1], grid[2][1]];
+      const straightSymbol = middleRow.find((s, _, arr) => s !== WILD_SYMBOL && arr.filter(x => x === s || x === WILD_SYMBOL).length >= 3);
+      if (straightSymbol) {
+        winPoints = 500;
+        winType = 'Straight Win';
+      }
+
+      // Diagonal/Cross (only if no straight win)
+      if (!winPoints) {
+        const patterns = [
+          [grid[0][0], grid[1][1], grid[2][2]], // Top-left to bottom-right
+          [grid[0][2], grid[1][1], grid[2][0]], // Bottom-left to top-right
+        ];
+        for (const pattern of patterns) {
+          const diagSymbol = pattern.find((s, _, arr) => s !== WILD_SYMBOL && arr.filter(x => x === s || x === WILD_SYMBOL).length >= 3);
+          if (diagSymbol) {
+            winPoints = 100;
+            winType = 'Diagonal Win';
+            break;
+          }
+        }
+      }
+
+      setPoints(winPoints);
+      setGameStatus(winPoints > 0 ? 'won' : 'lost');
+      if (winPoints > 0 && !demoMode) {
+        setShowConfetti(true);
+        playSound('win');
+        cashOut(winPoints);
+        toast.success(`${winType}! Won ${winPoints} Meow Miles!`);
+      } else {
+        toast.error('No win this time!');
+      }
+    }, SPIN_DURATION);
+  }, [reels, gameStatus, demoMode, cashOut]);
+
+  const placeBet = async () => {
+    if (!address) return toast.error('Please connect your wallet');
+    const pendingToast = toast.loading('Placing bet...');
+    try {
+      await switchChain({ chainId: monadTestnet.id });
+      if (!balanceData || balanceData.value < BigInt(INITIAL_BET * 1e18)) throw new Error('Insufficient MON balance.');
+      writeContract(
+        { address: CONTRACT_ADDRESS, abi: contractAbi, functionName: 'placeBet', value: BigInt(INITIAL_BET * 1e18) },
+        {
+          onSuccess: async (txHash) => {
+            toast.dismiss(pendingToast);
+            toast.success(
+              <div>
+                Bet placed!{' '}
+                <a href={`https://testnet.monadscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="underline text-cyan-400">
+                  View on MonadScan
+                </a>
+              </div>,
+              { duration: 5000 }
+            );
+            setGameStarted(true);
+            setDemoMode(false);
+            spinReels();
+          },
+          onError: (error) => { throw error; },
+        }
+      );
+    } catch {
+      toast.dismiss(pendingToast);
+      toast.error(
+        <div>
+          Insufficient MON balance.{' '}
+          <a href="https://faucet.monad.xyz/" target="_blank" rel="noopener noreferrer" className="underline text-cyan-400">
+            Claim MON tokens
+          </a>
+        </div>,
+        { duration: 5000 }
+      );
+    }
+  };
+
+  const startDemoGame = () => {
+    setGameStarted(true);
+    setDemoMode(true);
+    spinReels();
+  };
+
+  const handleCopyAddress = () => address && navigator.clipboard.writeText(address).then(() => toast.success('Address copied!'));
+
+  const memoizedReels = useMemo(() => reels, [reels]);
+
+  if (isConnecting) return <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-black to-purple-950 text-white text-lg text-cyan-400">Connecting...</div>;
+  if (!address) return null;
+
+  return (
+    <div className="flex min-h-screen bg-gradient-to-br from-black to-purple-950 text-white relative overflow-hidden">
+      <style jsx>{`
+        .particle {
+          position: absolute;
+          width: 12px;
+          height: 12px;
+          background: url('/cats/paw.png') no-repeat center;
+          background-size: contain;
+          animation: float 8s infinite ease-in-out;
+        }
+        @keyframes float {
+          0% { transform: translateY(0) rotate(0deg); opacity: 0.6; }
+          50% { opacity: 0.9; }
+          100% { transform: translateY(-100vh) rotate(360deg); opacity: 0.6; }
+        }
+        .sparkle {
+          position: absolute;
+          width: 8px;
+          height: 8px;
+          background: rgba(236, 72, 153, 0.8);
+          border-radius: 50%;
+          animation: sparkle 2s infinite ease-in-out;
+        }
+        @keyframes sparkle {
+          0% { transform: scale(0); opacity: 0; }
+          50% { transform: scale(1); opacity: 1; }
+          100% { transform: scale(0); opacity: 0; }
+        }
+      `}</style>
+      <div className="absolute inset-0 pointer-events-none">
+        {[...Array(15)].map((_, i) => (
+          <div key={`particle-${i}`} className="particle" style={{ left: `${Math.random() * 100}%`, animationDelay: `${Math.random() * 4}s` }} />
+        ))}
+        {gameStatus === 'spinning' && [...Array(10)].map((_, i) => (
+          <div key={`sparkle-${i}`} className="sparkle" style={{ left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`, animationDelay: `${Math.random() * 1}s` }} />
+        ))}
+      </div>
+
+      <main className="flex-1 p-4 md:p-8 relative z-10">
+        <Toaster position="top-right" toastOptions={{ style: { background: '#1a1a1a', color: '#fff', border: '1px solid #9333ea' } }} />
+        {showConfetti && <Confetti width={window.innerWidth} height={window.innerHeight} recycle={false} numberOfPieces={300} />}
+
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <h1 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">Cat Slots</h1>
+          <Profile account={address} onCopyAddress={handleCopyAddress} onDisconnect={disconnect} />
+        </div>
+
+        <motion.div className="bg-gradient-to-r from-black/90 to-purple-900/90 rounded-xl p-6 border border-pink-500 shadow-md shadow-pink-500/20 mb-6" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.5 }}>
+          <h3 className="text-lg md:text-xl font-semibold text-purple-400 mb-4">Game Stats</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <p className="text-gray-300">Spin Points: <motion.span className="text-cyan-400 font-bold" key={points} initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.3 }}>{points}</motion.span></p>
+            <p className="text-gray-300">Best Score: <motion.span className="text-cyan-400 font-bold" key={bestScore} initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.3 }}>{bestScore}</motion.span></p>
+            <p className="text-gray-300">Mode: <span className="text-cyan-400 font-bold">{demoMode ? 'Demo' : 'Real'}</span></p>
+          </div>
+          <p className="text-center mt-4 text-lg font-semibold text-purple-400">
+            Status: {gameStatus === 'idle' ? 'Ready to Spin' : gameStatus === 'spinning' ? 'Spinning...' : gameStatus === 'won' ? 'You Won!' : 'Try Again!'}
+          </p>
+        </motion.div>
+
+        <div className="flex justify-center mb-6">
+          <motion.div
+            className="grid grid-cols-3 gap-4 bg-gray-900/80 p-6 rounded-xl border border-purple-900 w-full max-w-[600px] sm:w-1/2"
+            style={{ alignItems: 'center', justifyItems: 'center' }}
+            animate={gameStatus === 'won' ? { x: [0, 5, -5, 0], transition: { duration: 0.3, repeat: 2 } } : {}}
+          >
+            {memoizedReels.map((reel, reelIndex) => (
+              <div key={reelIndex} className="relative overflow-hidden h-[204px]">
+                <motion.div
+                  animate={{ y: -((reel.offset % reel.symbols.length) * 68) }}
+                  transition={{ duration: gameStatus === 'spinning' ? SPIN_DURATION / 1000 : 0, ease: gameStatus === 'spinning' ? 'linear' : 'easeOut', delay: reelIndex * 0.1 }}
+                  className="flex flex-col gap-2"
+                >
+                  {reel.symbols.map((symbol, index) => (
+                    <div
+                      key={`${reelIndex}-${index}`}
+                      className={`flex items-center justify-center h-[64px] border border-purple-900/50 rounded-md box-border ${gameStatus === 'won' && index === 1 ? 'bg-green-600/50 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.7)]' : 'bg-gray-800/80'}`}
+                    >
+                      <motion.div
+                        animate={gameStatus === 'spinning' ? { rotateY: [0, 360], scale: [1, 1.3, 1], boxShadow: ['0 0 0 rgba(236,72,153,0)', '0 0 10px rgba(236,72,153,0.7)', '0 0 0 rgba(236,72,153,0)'] } : { rotateY: 0, scale: [1, 1.1, 1], boxShadow: '0 0 0 rgba(0,0,0,0)' }}
+                        transition={{ duration: 0.6, repeat: gameStatus === 'spinning' ? Infinity : 0, ease: 'easeInOut' }}
+                      >
+                        <Image src={symbol} alt="Slot symbol" width={56} height={56} className="object-contain" />
+                      </motion.div>
+                    </div>
+                  ))}
+                </motion.div>
+              </div>
+            ))}
+          </motion.div>
+        </div>
+
+        <div className="flex flex-wrap justify-center gap-4">
+          {!gameStarted ? (
+            <>
+              <motion.button
+                onClick={placeBet}
+                disabled={isPending || !address || gameStatus === 'spinning'}
+                className={`px-6 py-3 rounded-lg text-base font-semibold text-white ${isPending || !address || gameStatus === 'spinning' ? 'bg-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 shadow-[0_0_15px_rgba(147,51,234,0.5)]'}`}
+                animate={gameStatus === 'spinning' ? { rotate: 360, transition: { duration: 1, repeat: Infinity, ease: 'linear' } } : { scale: [1, 1.05, 1], boxShadow: ['0 0 5px rgba(147,51,234,0.5)', '0 0 15px rgba(147,51,234,0.7)', '0 0 5px rgba(147,51,234,0.5)'] }}
+                transition={{ repeat: gameStatus !== 'spinning' ? Infinity : 0, duration: gameStatus === 'spinning' ? 1 : 1.5 }}
+                whileHover={{ scale: 1.1, boxShadow: '0 0 20px rgba(147,51,234,0.7)' }}
+                whileTap={{ scale: 0.9 }}
+                aria-label={`Spin reels for ${INITIAL_BET} MON`}
+              >
+                {isPending ? 'Placing Bet...' : `Spin (${INITIAL_BET} MON)`}
+              </motion.button>
+              <motion.button
+                onClick={startDemoGame}
+                disabled={gameStatus === 'spinning'}
+                className={`px-6 py-3 rounded-lg text-base font-semibold text-white ${gameStatus === 'spinning' ? 'bg-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.5)]'}`}
+                animate={{ scale: [1, 1.05, 1], boxShadow: ['0 0 5px rgba(59,130,246,0.5)', '0 0 15px rgba(59,130,246,0.7)', '0 0 5px rgba(59,130,246,0.5)'] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+                whileHover={{ scale: 1.1, boxShadow: '0 0 20px rgba(59,130,246,0.7)' }}
+                whileTap={{ scale: 0.9 }}
+                aria-label="Play demo game"
+              >
+                Play Demo
+              </motion.button>
+            </>
+          ) : (
+            <motion.button
+              onClick={() => {
+                setGameStarted(false);
+                initializeReels();
+                setGameStatus('idle');
+                setPoints(0);
+              }}
+              className="px-6 py-3 rounded-lg text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 shadow-[0_0_15px_rgba(147,51,234,0.5)]"
+              animate={{ scale: [1, 1.05, 1], boxShadow: ['0 0 5px rgba(147,51,234,0.5)', '0 0 15px rgba(147,51,234,0.7)', '0 0 5px rgba(147,51,234,0.5)'] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+              whileHover={{ scale: 1.1, boxShadow: '0 0 20px rgba(147,51,234,0.7)' }}
+              whileTap={{ scale: 0.9 }}
+              aria-label="Start new game"
+            >
+              New Game
+            </motion.button>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
