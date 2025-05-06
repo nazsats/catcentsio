@@ -24,10 +24,10 @@ const SYMBOLS = [
 const WILD_SYMBOL = '/cats/wild.png';
 const REEL_SIZE = 3;
 const SPIN_DURATION = 3000;
-const STOP_DURATION = 800;
+const STOP_DURATION = 800; // eslint-disable-line @typescript-eslint/no-unused-vars
 const STAGGER_DELAY = 100;
 const HIGHLIGHT_DELAY = 300;
-const TOAST_DELAY = 2000;
+const TOAST_DELAY = 2000; // eslint-disable-line @typescript-eslint/no-unused-vars
 const INITIAL_BET = 0.01;
 const BASE_ICON_HEIGHT = 120;
 const NUM_ICONS = SYMBOLS.length;
@@ -62,8 +62,8 @@ export default function CatSlots() {
   const [gameStarted, setGameStarted] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [winningPositions, setWinningPositions] = useState<[number, number][]>([]);
-  const [showModal, setShowModal] = useState(false); // New state for modal visibility
-  const [winInfo, setWinInfo] = useState<WinInfo | null>(null); // Store win info for modal
+  const [showModal, setShowModal] = useState(false);
+  const [winInfo, setWinInfo] = useState<WinInfo | null>(null);
   const reelRefs = useRef<(HTMLDivElement | null)[]>([]);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
@@ -134,6 +134,7 @@ export default function CatSlots() {
 
   useEffect(() => {
     const currentReels = reelRefs.current;
+    const toastTimeout = toastTimeoutRef.current; // Copy ref value
     if (gameStatus !== 'spinning') {
       currentReels.forEach((reel) => {
         if (reel) {
@@ -151,8 +152,8 @@ export default function CatSlots() {
           reel.classList.remove(styles.spinning);
         }
       });
-      if (toastTimeoutRef.current) {
-        clearTimeout(toastTimeoutRef.current);
+      if (toastTimeout) {
+        clearTimeout(toastTimeout);
       }
     };
   }, [gameStatus]);
@@ -175,7 +176,7 @@ export default function CatSlots() {
           { merge: true }
         );
       });
-      setBestScore(currentPoints);
+     setBestScore(currentPoints);
       toast.dismiss(pendingToast);
       toast.success(`Cashed out ${currentPoints} Meow Miles!`);
     } catch {
@@ -209,7 +210,7 @@ export default function CatSlots() {
     setPoints(0);
     setShowConfetti(false);
     setWinningPositions([]);
-    setShowModal(false); // Close modal on new game
+    setShowModal(false);
     reelRefs.current.forEach((reel) => {
       if (reel) {
         reel.style.transition = 'none';
@@ -251,11 +252,11 @@ export default function CatSlots() {
       if (reel) {
         const totalSpinSymbols = SPIN_CYCLES * NUM_ICONS + 3;
         const totalTranslateY = -(totalSpinSymbols - 3) * iconHeight;
-    
+
         reel.style.transition = 'none';
         reel.style.transform = 'translateY(0)';
         void reel.offsetWidth;
-    
+
         setTimeout(() => {
           reel.style.transition = `transform ${SPIN_DURATION + reelIndex * STAGGER_DELAY}ms cubic-bezier(0.25, 1, 0.5, 1)`;
           reel.style.transform = `translateY(${totalTranslateY}px)`;
@@ -302,14 +303,13 @@ export default function CatSlots() {
           setPoints(highestWin.points);
           setGameStatus('won');
           setShowConfetti(true);
-          setWinInfo(highestWin); // Store win info for modal
+          setWinInfo(highestWin);
           playSound('win');
           cashOut(highestWin.points);
         } else {
           setGameStatus('lost');
-          setWinInfo(null); // No win info for loss
+          setWinInfo(null);
         }
-        // Show modal after 1.5 seconds
         setTimeout(() => {
           setShowModal(true);
         }, 1500);
@@ -514,7 +514,6 @@ export default function CatSlots() {
           <Confetti width={window.innerWidth} height={window.innerHeight} recycle={false} numberOfPieces={300} />
         )}
 
-        {/* Render Modal */}
         <Modal
           isOpen={showModal}
           onClose={() => setShowModal(false)}
