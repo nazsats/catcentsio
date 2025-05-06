@@ -23,14 +23,16 @@ const SYMBOLS = [
 ];
 const WILD_SYMBOL = '/cats/wild.png';
 const REEL_SIZE = 3;
-const SPIN_DURATION = 3000; // 3000ms
+const SPIN_DURATION = 3000;
+const STOP_DURATION = 800;
+const STAGGER_DELAY = 100;
 const HIGHLIGHT_DELAY = 300;
-const TOAST_DELAY = 2000; // 2 seconds
-const INITIAL_BET = 0.001;
-const BASE_ICON_HEIGHT = 120; // Base height for desktop
+const TOAST_DELAY = 2000;
+const INITIAL_BET = 0.01;
+const BASE_ICON_HEIGHT = 120;
 const NUM_ICONS = SYMBOLS.length;
-const SPIN_CYCLES = 5; // Number of full reel cycles during spin
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CASLOTS_CONTRACT_ADDRESS || '0xd9145CCE52D386f254917e481eB44e9943F39138';
+const SPIN_CYCLES = 5;
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CASLOTS_CONTRACT_ADDRESS || '0xD00C45AC031F20c8931B25fDb937A830f891b967';
 const contractAbi = [
   { type: 'function', name: 'placeBet', inputs: [], outputs: [], stateMutability: 'payable' },
   { type: 'event', name: 'BetPlaced', inputs: [{ name: 'player', type: 'address', indexed: true }, { name: 'amount', type: 'uint256', indexed: false }, { name: 'timestamp', type: 'uint256', indexed: false }] },
@@ -60,6 +62,8 @@ export default function CatSlots() {
   const [gameStarted, setGameStarted] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [winningPositions, setWinningPositions] = useState<[number, number][]>([]);
+  const [showModal, setShowModal] = useState(false); // New state for modal visibility
+  const [winInfo, setWinInfo] = useState<WinInfo | null>(null); // Store win info for modal
   const reelRefs = useRef<(HTMLDivElement | null)[]>([]);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
@@ -69,7 +73,7 @@ export default function CatSlots() {
   useEffect(() => {
     const updateIconHeight = () => {
       const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
-      const newIconHeight = Math.min(BASE_ICON_HEIGHT, Math.floor(vw * 0.25)); // Scale to 25% of viewport width
+      const newIconHeight = Math.min(BASE_ICON_HEIGHT, Math.floor(vw * 0.25));
       setIconHeight(newIconHeight);
     };
     updateIconHeight();
@@ -100,7 +104,7 @@ export default function CatSlots() {
     const newReels = Array(REEL_SIZE)
       .fill(null)
       .map(() => ({
-        symbols: generateRandomSymbols(3), // Only 3 symbols initially
+        symbols: generateRandomSymbols(3),
         offset: 0,
       }));
     setReels(newReels);
@@ -205,6 +209,7 @@ export default function CatSlots() {
     setPoints(0);
     setShowConfetti(false);
     setWinningPositions([]);
+    setShowModal(false); // Close modal on new game
     reelRefs.current.forEach((reel) => {
       if (reel) {
         reel.style.transition = 'none';
@@ -225,61 +230,41 @@ export default function CatSlots() {
     }
     playSound('spin');
 
-    // Generate final symbols for the reels
     const finalReels = Array(REEL_SIZE)
       .fill(null)
       .map(() => ({
-        symbols: generateRandomSymbols(3), // Final 3 symbols
+        symbols: generateRandomSymbols(3),
         offset: 0,
       }));
 
-    // Create extended reel symbols for animation (prepend symbols for spin effect)
-    const totalSpinSymbols = SPIN_CYCLES * NUM_ICONS + 3; // Enough symbols for spin cycles + final 3
+    const totalSpinSymbols = SPIN_CYCLES * NUM_ICONS + 3;
     const extendedReels = finalReels.map((reel) => {
       const prependedSymbols = generateRandomSymbols(totalSpinSymbols - 3);
       return {
-        symbols: [...prependedSymbols, ...reel.symbols], // Prepend random symbols, end with final symbols
+        symbols: [...prependedSymbols, ...reel.symbols],
         offset: 0,
       };
     });
 
     setReels(extendedReels);
-
     reelRefs.current.forEach((reel, reelIndex) => {
       if (reel) {
-        // Calculate translation to move through all symbols and stop at the final 3
-        const totalTranslateY = -(totalSpinSymbols - 3) * iconHeight; // Stop at the last 3 symbols
-
-        // Reset reel position
+        const totalSpinSymbols = SPIN_CYCLES * NUM_ICONS + 3;
+        const totalTranslateY = -(totalSpinSymbols - 3) * iconHeight;
+    
         reel.style.transition = 'none';
         reel.style.transform = 'translateY(0)';
-        reel.classList.remove(styles.spinning);
         void reel.offsetWidth;
-
-        // Start spin animation
+    
         setTimeout(() => {
-          reel.classList.add(styles.spinning);
-          reel.style.transition = `transform ${SPIN_DURATION}ms cubic-bezier(0.41, -0.01, 0.63, 1.09)`;
+          reel.style.transition = `transform ${SPIN_DURATION + reelIndex * STAGGER_DELAY}ms cubic-bezier(0.25, 1, 0.5, 1)`;
           reel.style.transform = `translateY(${totalTranslateY}px)`;
         }, 10);
-
-        // Stop animation and set final symbols
-        setTimeout(() => {
-          reel.style.transition = 'transform 0.4s ease-out'; // Smooth slowing effect
-          reel.style.transform = 'translateY(0)';
-          reel.classList.remove(styles.spinning);
-
-          // Update reels to final symbols only
-          setReels((prevReels) =>
-            prevReels.map((r, i) => (i === reelIndex ? { symbols: finalReels[i].symbols, offset: 0 } : r))
-          );
-        }, SPIN_DURATION);
       }
     });
 
-    // Evaluate win after animation
     setTimeout(() => {
-      setReels(finalReels); // Ensure state is finalReels for win calculation
+      setReels(finalReels);
 
       const grid = finalReels.map((reel) => [
         reel.symbols[0],
@@ -317,82 +302,20 @@ export default function CatSlots() {
           setPoints(highestWin.points);
           setGameStatus('won');
           setShowConfetti(true);
+          setWinInfo(highestWin); // Store win info for modal
           playSound('win');
           cashOut(highestWin.points);
-          toastTimeoutRef.current = setTimeout(() => {
-            toast.custom(
-              (t) => (
-                <div
-                  className={`${styles.instantCloseToast} bg-gradient-to-br from-purple-900/90 to-black/90 rounded-xl p-6 border border-purple-500 shadow-lg shadow-purple-500/30 max-w-md w-full mx-4 text-gray-300 z-50`}
-                  role="alert"
-                >
-                  <h2 className="text-xl font-bold text-cyan-400 mb-4 text-center">Congratulations!</h2>
-                  <div className="space-y-2">
-                    <p className="text-base">
-                      <span className="font-semibold text-purple-400">Cashed Out Points:</span>{' '}
-                      <span className="text-cyan-400 font-bold">{highestWin.points}</span>
-                    </p>
-                    <p className="text-base">
-                      <span className="font-semibold text-purple-400">Win Type:</span>{' '}
-                      <span className="text-cyan-400 font-bold">{highestWin.type}</span>
-                    </p>
-                  </div>
-                  <div className="mt-6 flex justify-center">
-                    <motion.button
-                      className={`${styles.newGameButton} px-6 py-3 rounded-lg text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 shadow-[0_0_15px_rgba(147,51,234,0.5)]`}
-                      onClick={() => {
-                        toast.dismiss(t.id);
-                        handleNewGame();
-                      }}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      New Game
-                    </motion.button>
-                  </div>
-                </div>
-              ),
-              { duration: Infinity }
-            );
-          }, TOAST_DELAY);
         } else {
           setGameStatus('lost');
-          toastTimeoutRef.current = setTimeout(() => {
-            toast.custom(
-              (t) => (
-                <div
-                  className={`${styles.instantCloseToast} bg-gradient-to-br from-purple-900/90 to-black/90 rounded-xl p-6 border border-purple-500 shadow-lg shadow-purple-500/30 max-w-md w-full mx-4 text-gray-300 z-50`}
-                  role="alert"
-                >
-                  <h2 className="text-xl font-bold text-cyan-400 mb-4 text-center">Try Again</h2>
-                  <div className="space-y-2">
-                    <p className="text-base">
-                      <span className="font-semibold text-purple-400">Points:</span>{' '}
-                      <span className="text-cyan-400 font-bold">0</span>
-                    </p>
-                  </div>
-                  <div className="mt-6 flex justify-center">
-                    <motion.button
-                      className={`${styles.newGameButton} px-6 py-3 rounded-lg text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 shadow-[0_0_15px_rgba(147,51,234,0.5)]`}
-                      onClick={() => {
-                        toast.dismiss(t.id);
-                        handleNewGame();
-                      }}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      New Game
-                    </motion.button>
-                  </div>
-                </div>
-              ),
-              { duration: Infinity }
-            );
-          }, TOAST_DELAY);
+          setWinInfo(null); // No win info for loss
         }
+        // Show modal after 1.5 seconds
+        setTimeout(() => {
+          setShowModal(true);
+        }, 1500);
       }, HIGHLIGHT_DELAY);
-    }, SPIN_DURATION);
-  }, [gameStatus, cashOut, checkPaylineWin, handleNewGame, iconHeight]);
+    }, SPIN_DURATION + (REEL_SIZE - 1) * STAGGER_DELAY);
+  }, [gameStatus, cashOut, checkPaylineWin, iconHeight]);
 
   const placeBet = async () => {
     if (!address) return toast.error('Please connect your wallet');
@@ -433,9 +356,9 @@ export default function CatSlots() {
           },
         }
       );
-    } catch (error: unknown) {
+    } catch (_error: unknown) {
       toast.dismiss(pendingToast);
-      const message = error instanceof Error ? error.message : 'Unknown error';
+      const message = _error instanceof Error ? _error.message : 'Unknown error';
       if (message.includes('insufficient funds') || message.includes('Insufficient MON balance')) {
         toast.error(
           <div>
@@ -466,6 +389,56 @@ export default function CatSlots() {
   };
 
   const memoizedReels = useMemo(() => reels, [reels]);
+
+  // Modal Component
+  const Modal = ({ isOpen, onClose, winInfo, points }: { isOpen: boolean; onClose: () => void; winInfo: WinInfo | null; points: number }) => {
+    if (!isOpen) return null;
+
+    return (
+      <motion.div
+        className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        <motion.div
+          className="bg-gradient-to-br from-purple-900/90 to-black/90 rounded-xl p-6 border border-purple-500 shadow-lg shadow-purple-500/30 max-w-md w-full mx-4 text-gray-300"
+          initial={{ scale: 0.8, y: 20 }}
+          animate={{ scale: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: 'easeInOut' }}
+        >
+          <h2 className="text-xl font-bold text-cyan-400 mb-4 text-center">
+            {winInfo ? 'Congratulations!' : 'Try Again'}
+          </h2>
+          <div className="space-y-2">
+            <p className="text-base">
+              <span className="font-semibold text-purple-400">Points:</span>{' '}
+              <span className="text-cyan-400 font-bold">{points}</span>
+            </p>
+            {winInfo && (
+              <p className="text-base">
+                <span className="font-semibold text-purple-400">Win Type:</span>{' '}
+                <span className="text-cyan-400 font-bold">{winInfo.type}</span>
+              </p>
+            )}
+          </div>
+          <div className="mt-6 flex justify-center">
+            <motion.button
+              className="px-6 py-3 rounded-lg text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 shadow-[0_0_15px_rgba(147,51,234,0.5)]"
+              onClick={() => {
+                onClose();
+                handleNewGame();
+              }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              Play Again
+            </motion.button>
+          </div>
+        </motion.div>
+      </motion.div>
+    );
+  };
 
   if (isConnecting) {
     return (
@@ -540,6 +513,14 @@ export default function CatSlots() {
         {showConfetti && (
           <Confetti width={window.innerWidth} height={window.innerHeight} recycle={false} numberOfPieces={300} />
         )}
+
+        {/* Render Modal */}
+        <Modal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          winInfo={winInfo}
+          points={points}
+        />
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <h1 className="text-2xl sm:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">
