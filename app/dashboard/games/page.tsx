@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { db } from '../../../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import Profile from '../../../components/Profile';
-import Loader from '../../../components/Loader'; // Import Loader
+import Loader from '../../../components/Loader';
 import toast, { Toaster } from 'react-hot-toast';
 import { useAccount, useDisconnect } from 'wagmi';
 
@@ -28,6 +28,7 @@ export default function Games() {
         setGamesGmeow(Math.floor(data.gamesGmeow || 0));
         setGameScores({
           catsweeper: data.minesweeperBestScore || 0,
+          catslots: data.catslotsBestScore || 0, // Added catslotsBestScore
         });
       }
     } catch (error) {
@@ -75,11 +76,10 @@ export default function Games() {
       image: '/games/catsweeper.png',
     },
     {
-      id: 'puzzle',
-      title: 'Paw-some Puzzle (Coming Soon)',
-      description: 'Solve cat-themed puzzles to win rewards.',
-      image: '/games/puzzle.png',
-      comingSoon: true,
+      id: 'catslots',
+      title: 'Cat Slots',
+      description: 'Spin the reels with cute cats to win Meow Miles!',
+      image: '/games/catslots.png', // Update with appropriate image
     },
     {
       id: 'race',
@@ -92,7 +92,6 @@ export default function Games() {
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-black to-purple-950 text-white">
-
       <main className="flex-1 p-4 md:p-8">
         <Toaster position="top-right" toastOptions={{ style: { background: '#1a1a1a', color: '#fff', border: '1px solid #9333ea' } }} />
 
