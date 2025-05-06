@@ -51,8 +51,8 @@ export default function Games() {
   const { writeContract, isPending } = useWriteContract();
   const [gamesGmeow, setGamesGmeow] = useState(0);
   const [gameScores, setGameScores] = useState<{ [key: string]: number }>({});
-  const [claimCount, setClaimCount] = useState(0); // Track number of claims
-  const [lastClaimAmount, setLastClaimAmount] = useState<number | null>(null); // Track last claimed MON
+  const [claimCount, setClaimCount] = useState(0);
+  const [lastClaimAmount, setLastClaimAmount] = useState<number | null>(null);
   const router = useRouter();
   const [hasRedirected, setHasRedirected] = useState(false);
 
@@ -67,8 +67,8 @@ export default function Games() {
           catsweeper: data.minesweeperBestScore || 0,
           catslots: data.catslotsBestScore || 0,
         });
-        setClaimCount(data.claimCount || 0); // Load claim count
-        setLastClaimAmount(data.lastClaimAmount || null); // Load last claim amount
+        setClaimCount(data.claimCount || 0);
+        setLastClaimAmount(data.lastClaimAmount || null);
       }
     } catch (error) {
       console.error('Failed to fetch game scores:', error);
@@ -99,14 +99,14 @@ export default function Games() {
 
   const handleClaim = async () => {
     if (!address) return toast.error('Please connect your wallet');
-    
+
     const nextClaimThreshold = (claimCount + 1) * 250; // Next threshold: 250, 500, 750, ...
     if (gamesGmeow < nextClaimThreshold) {
-      return toast.error(`Need at least ${nextClaimThreshold} Meow Miles to claim!`);
+      return toast.error(`You need at least ${nextClaimThreshold} Meow Miles to claim!`, { duration: 4000 });
     }
 
-    const pointsToSpend = nextClaimThreshold; // Claim exactly the threshold amount
-    const monToClaim = (pointsToSpend / 250 * 0.025); // Calculate MON tokens
+    const pointsToSpend = nextClaimThreshold;
+    const monToClaim = (pointsToSpend / 250 * 0.025);
     const pendingToast = toast.loading('Claiming MON tokens...');
 
     try {
@@ -132,8 +132,8 @@ export default function Games() {
                   updatedAt: new Date().toISOString(),
                 });
               });
-              setClaimCount((prev) => prev + 1); // Increment claim count
-              setLastClaimAmount(monToClaim); // Update last claim amount
+              setClaimCount((prev) => prev + 1);
+              setLastClaimAmount(monToClaim);
               toast.dismiss(pendingToast);
               toast.success(
                 <div>
@@ -157,7 +157,20 @@ export default function Games() {
           },
           onError: (error) => {
             toast.dismiss(pendingToast);
-            toast.error(`Claim failed: ${error.message}`, { duration: 4000 });
+            // Check for "already claimed" or revert errors
+            const errorMessage = error.message.toLowerCase();
+            if (
+              errorMessage.includes('already claimed') ||
+              errorMessage.includes('revert') ||
+              errorMessage.includes('cannot claim again')
+            ) {
+              toast.error(
+                `You already claimed at this level! Earn more Meow Miles to claim again.`,
+                { duration: 4000 }
+              );
+            } else {
+              toast.error(`Claim failed: ${error.message}`, { duration: 4000 });
+            }
           },
         }
       );
@@ -200,7 +213,7 @@ export default function Games() {
     },
   ];
 
-  const nextClaimThreshold = (claimCount + 1) * 250; // Calculate next threshold for UI
+  const nextClaimThreshold = (claimCount + 1) * 250;
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-black to-purple-950 text-white">
@@ -264,9 +277,9 @@ export default function Games() {
             </div>
             <button
               onClick={handleClaim}
-              disabled={isPending || gamesGmeow < nextClaimThreshold}
+              disabled={isPending} // Only disable during pending transaction
               className={`px-4 py-2 rounded-lg text-sm md:text-base font-semibold text-white transition-all duration-200 ${
-                isPending || gamesGmeow < nextClaimThreshold
+                isPending
                   ? 'bg-gray-600 cursor-not-allowed'
                   : 'bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400'
               }`}
