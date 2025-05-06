@@ -1,0 +1,52 @@
+.particle {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: url('/cats/paw.png') no-repeat center;
+    background-size: contain;
+    animation: float 8s infinite ease-in-out;
+  }
+  
+  @keyframes float {
+    0% {
+      transform: translateY(0) rotate(0deg);
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 0.9;
+    }
+    100% {
+      transform: translateY(-100vh) rotate(360deg);
+      opacity: 0.6;
+    }
+  }
+  
+  .sparkle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: rgba(236, 72, 153, 0.8);
+    border-radius: 50%;
+    animation: sparkle 2s infinite ease-in-out;
+  }
+  
+  @keyframes sparkle {
+    0% {
+      transform: scale(0);
+      opacity: 0;
+    }
+    50% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(0);
+      opacity: 0;
+    }
+  }
+  
+  .reelContainer {
+    position: relative;
+    width: 120px;
+    height: 360px;
+  }

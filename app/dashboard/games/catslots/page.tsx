@@ -1,6 +1,6 @@
-// app/dashboard/games/catslots/page.tsx
 'use client';
 
+import React from 'react';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -12,13 +12,15 @@ import toast, { Toaster } from 'react-hot-toast';
 import { useAccount, useDisconnect, useWriteContract, useSwitchChain, useBalance } from 'wagmi';
 import { monadTestnet } from '@reown/appkit/networks';
 import Confetti from 'react-confetti';
+import styles from './Catslots.module.css';
 
-const SYMBOLS = ['/cats/cat1.png', '/cats/cat2.png', '/cats/cat3.png', '/cats/wild.png', '/cats/fish.png'];
+const SYMBOLS = ['/cats/cat1.png', '/cats/cat2.png', '/cats/cat3.png', '/cats/wild.png', '/cats/fish.png', '/cats/star.png'];
 const WILD_SYMBOL = '/cats/wild.png';
 const REEL_SIZE = 3;
-const SPIN_DURATION = 2500;
+const SPIN_DURATION = 2600; // Covers staggered stop (third reel at 2.6s)
+const MODAL_DELAY = 3000; // 3 seconds after animation ends for confetti
 const INITIAL_BET = 0.001;
-const CONTRACT_ADDRESS = '0xd9145CCE52D386f254917e481eB44e9943F39138';
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CASLOTS_CONTRACT_ADDRESS || '0xd9145CCE52D386f254917e481eB44e9943F39138';
 const contractAbi = [
   { type: 'function', name: 'placeBet', inputs: [], outputs: [], stateMutability: 'payable' },
   { type: 'event', name: 'BetPlaced', inputs: [{ name: 'player', type: 'address', indexed: true }, { name: 'amount', type: 'uint256', indexed: false }, { name: 'timestamp', type: 'uint256', indexed: false }] },
@@ -27,6 +29,11 @@ const contractAbi = [
 interface Reel {
   symbols: string[];
   offset: number;
+}
+
+interface WinInfo {
+  points: number;
+  type: string;
 }
 
 export default function CatSlots() {
@@ -42,13 +49,21 @@ export default function CatSlots() {
   const [gameStarted, setGameStarted] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [highlightWin, setHighlightWin] = useState<WinInfo | null>(null);
   const router = useRouter();
 
   const initializeReels = useCallback(() => {
     const newReels = Array(REEL_SIZE)
       .fill(null)
       .map(() => ({
-        symbols: Array(100).fill(null).map(() => SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]),
+        symbols: Array(50)
+          .fill(null)
+          .map(() => {
+            const rand = Math.random();
+            return rand < 0.05
+              ? WILD_SYMBOL
+              : SYMBOLS[Math.floor(Math.random() * (SYMBOLS.length - 1))];
+          }),
         offset: 0,
       }));
     setReels(newReels);
@@ -69,7 +84,15 @@ export default function CatSlots() {
     })();
   }, [address, isConnecting, router, initializeReels]);
 
-  const playSound = (type: 'spin' | 'win') => new Audio(`/sounds/${type}.mp3`).play().catch((err) => console.error('Audio failed:', err));
+  useEffect(() => {
+    if (showConfetti) {
+      const timer = setTimeout(() => setShowConfetti(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showConfetti]);
+
+  const playSound = (type: 'spin' | 'win') =>
+    new Audio(`/sounds/${type}.mp3`).play().catch((err) => console.error('Audio failed:', err));
 
   const cashOut = async (currentPoints: number) => {
     if (!address || demoMode) return;
@@ -80,7 +103,11 @@ export default function CatSlots() {
         const userDoc = await transaction.get(userRef);
         const data = userDoc.data() || {};
         const newScore = Math.max(data.catslotsBestScore || 0, currentPoints);
-        transaction.set(userRef, { catslotsBestScore: newScore, gamesGmeow: increment(currentPoints), updatedAt: new Date().toISOString() }, { merge: true });
+        transaction.set(
+          userRef,
+          { catslotsBestScore: newScore, gamesGmeow: increment(currentPoints), updatedAt: new Date().toISOString() },
+          { merge: true }
+        );
       });
       setBestScore(currentPoints);
       toast.dismiss(pendingToast);
@@ -91,85 +118,158 @@ export default function CatSlots() {
     }
   };
 
+  const getWinningCells = (winType: string): string[] => {
+    switch (winType) {
+      case 'Top Straight':
+        return ['0-0', '1-0', '2-0'];
+      case 'Middle Straight':
+        return ['0-1', '1-1', '2-1'];
+      case 'Bottom Straight':
+        return ['0-2', '1-2', '2-2'];
+      case 'Cross (Left Down to Right Up)':
+        return ['0-2', '1-1', '2-0'];
+      case 'Cross (Right Down to Left Up)':
+        return ['2-2', '1-1', '0-0'];
+      case 'Top Straight (Wild)':
+        return ['0-0', '1-0', '2-0'];
+      case 'Middle Straight (Wild)':
+        return ['0-1', '1-1', '2-1'];
+      case 'Bottom Straight (Wild)':
+        return ['0-2', '1-2', '2-2'];
+      default:
+        return [];
+    }
+  };
+
+  const checkPaylineWin = useCallback(
+    (symbols: string[], lineName: string): WinInfo | null => {
+      const isWildLine = symbols.every((s) => s === WILD_SYMBOL);
+      if (isWildLine) {
+        return lineName.includes('Straight') ? { points: 500, type: `${lineName} (Wild)` } : null;
+      }
+
+      const nonWildSymbol = symbols.find((s) => s !== WILD_SYMBOL);
+      if (!nonWildSymbol) return null;
+
+      const isWin = symbols.every((s) => s === nonWildSymbol || s === WILD_SYMBOL);
+      if (isWin) {
+        const points = lineName.includes('Straight') ? 100 : 50;
+        return { points, type: lineName };
+      }
+      return null;
+    },
+    []
+  );
+
+  const generateRandomReel = () =>
+    Array(50)
+      .fill(null)
+      .map(() => {
+        const rand = Math.random();
+        return rand < 0.05
+          ? WILD_SYMBOL
+          : SYMBOLS[Math.floor(Math.random() * (SYMBOLS.length - 1))];
+      });
+
   const spinReels = useCallback(() => {
     if (gameStatus === 'spinning') return;
     setGameStatus('spinning');
     setShowConfetti(false);
     setPoints(0);
+    setHighlightWin(null);
     playSound('spin');
 
-    const newReels = reels.map((reel) => ({
-      ...reel,
-      offset: (reel.offset + Math.floor(Math.random() * 10) + 10),
-      symbols: Array(100).fill(null).map(() => SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]),
-    }));
-
-    setReels(newReels);
+    // During animation, show temporary random symbols
+    const tempReels = Array(REEL_SIZE)
+      .fill(null)
+      .map(() => ({
+        symbols: generateRandomReel(),
+        offset: Math.floor(Math.random() * 10) + 10,
+      }));
+    setReels(tempReels);
 
     setTimeout(() => {
-      const alignedReels = newReels.map((reel) => ({
-        ...reel,
-        offset: Math.floor(reel.offset / reel.symbols.length) * reel.symbols.length + 1,
-      }));
-      setReels(alignedReels);
+      // At animation end, generate final symbols
+      const finalReels = Array(REEL_SIZE)
+        .fill(null)
+        .map(() => ({
+          symbols: generateRandomReel(),
+          offset: 0, // Reset offset for final position
+        }));
+      setReels(finalReels);
 
-      const grid = alignedReels.map((reel) => [reel.symbols[0], reel.symbols[1], reel.symbols[2]]);
+      const grid = finalReels.map((reel) => [
+        reel.symbols[0],
+        reel.symbols[1],
+        reel.symbols[2],
+      ]);
 
-      let winPoints = 0;
-      let winType = '';
+      const paylines = [
+        { symbols: [grid[0][0], grid[1][0], grid[2][0]], name: 'Top Straight' },
+        { symbols: [grid[0][1], grid[1][1], grid[2][1]], name: 'Middle Straight' },
+        { symbols: [grid[0][2], grid[1][2], grid[2][2]], name: 'Bottom Straight' },
+        {
+          symbols: [grid[0][2], grid[1][1], grid[2][0]],
+          name: 'Cross (Left Down to Right Up)',
+        },
+        {
+          symbols: [grid[2][2], grid[1][1], grid[0][0]],
+          name: 'Cross (Right Down to Left Up)',
+        },
+      ];
 
-      // Straight line (middle row)
-      const middleRow = [grid[0][1], grid[1][1], grid[2][1]];
-      const straightSymbol = middleRow.find((s, _, arr) => s !== WILD_SYMBOL && arr.filter(x => x === s || x === WILD_SYMBOL).length >= 3);
-      if (straightSymbol) {
-        winPoints = 500;
-        winType = 'Straight Win';
-      }
-
-      // Diagonal/Cross (only if no straight win)
-      if (!winPoints) {
-        const patterns = [
-          [grid[0][0], grid[1][1], grid[2][2]], // Top-left to bottom-right
-          [grid[0][2], grid[1][1], grid[2][0]], // Bottom-left to top-right
-        ];
-        for (const pattern of patterns) {
-          const diagSymbol = pattern.find((s, _, arr) => s !== WILD_SYMBOL && arr.filter(x => x === s || x === WILD_SYMBOL).length >= 3);
-          if (diagSymbol) {
-            winPoints = 100;
-            winType = 'Diagonal Win';
-            break;
-          }
+      let highestWin: WinInfo | null = null;
+      for (const payline of paylines) {
+        const win = checkPaylineWin(payline.symbols, payline.name);
+        if (win && (!highestWin || win.points > highestWin.points)) {
+          highestWin = win;
         }
       }
 
-      setPoints(winPoints);
-      setGameStatus(winPoints > 0 ? 'won' : 'lost');
-      if (winPoints > 0 && !demoMode) {
-        setShowConfetti(true);
-        playSound('win');
-        cashOut(winPoints);
-        toast.success(`${winType}! Won ${winPoints} Meow Miles!`);
-      } else {
-        toast.error('No win this time!');
-      }
+      // Apply highlight immediately after animation ends
+      setHighlightWin(highestWin);
+
+      // Trigger confetti and final status 3 seconds after animation ends
+      setTimeout(() => {
+        setPoints(highestWin?.points || 0);
+        setGameStatus(highestWin ? 'won' : 'lost');
+        if (highestWin && !demoMode) {
+          setShowConfetti(true);
+          playSound('win');
+          cashOut(highestWin.points);
+        } else if (!highestWin) {
+          toast.error('No win this time!');
+        }
+      }, MODAL_DELAY);
     }, SPIN_DURATION);
-  }, [reels, gameStatus, demoMode, cashOut]);
+  }, [reels, gameStatus, demoMode, cashOut, checkPaylineWin]);
 
   const placeBet = async () => {
     if (!address) return toast.error('Please connect your wallet');
     const pendingToast = toast.loading('Placing bet...');
     try {
       await switchChain({ chainId: monadTestnet.id });
-      if (!balanceData || balanceData.value < BigInt(INITIAL_BET * 1e18)) throw new Error('Insufficient MON balance.');
+      if (!balanceData || balanceData.value < BigInt(INITIAL_BET * 1e18))
+        throw new Error('Insufficient MON balance.');
       writeContract(
-        { address: CONTRACT_ADDRESS, abi: contractAbi, functionName: 'placeBet', value: BigInt(INITIAL_BET * 1e18) },
+        {
+          address: CONTRACT_ADDRESS as `0x${string}`,
+          abi: contractAbi,
+          functionName: 'placeBet',
+          value: BigInt(INITIAL_BET * 1e18),
+        },
         {
           onSuccess: async (txHash) => {
             toast.dismiss(pendingToast);
             toast.success(
               <div>
                 Bet placed!{' '}
-                <a href={`https://testnet.monadscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="underline text-cyan-400">
+                <a
+                  href={`https://testnet.monadscan.com/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-cyan-400"
+                >
                   View on MonadScan
                 </a>
               </div>,
@@ -179,20 +279,34 @@ export default function CatSlots() {
             setDemoMode(false);
             spinReels();
           },
-          onError: (error) => { throw error; },
+          onError: (error) => {
+            throw error;
+          },
         }
       );
-    } catch {
+    } catch (error: any) {
       toast.dismiss(pendingToast);
-      toast.error(
-        <div>
-          Insufficient MON balance.{' '}
-          <a href="https://faucet.monad.xyz/" target="_blank" rel="noopener noreferrer" className="underline text-cyan-400">
-            Claim MON tokens
-          </a>
-        </div>,
-        { duration: 5000 }
-      );
+      const reason = error.reason || error.message || 'Unknown error';
+      if (reason.includes('insufficient funds') || reason.includes('Insufficient MON balance')) {
+        toast.error(
+          <div>
+            Insufficient MON balance.{' '}
+            <a
+              href="https://faucet.monad.xyz/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline text-cyan-400"
+            >
+              Claim MON tokens
+            </a>
+          </div>,
+          { duration: 5000 }
+        );
+      } else if (reason.includes('revert')) {
+        toast.error('Bet failed: Transaction reverted.', { duration: 5000 });
+      } else {
+        toast.error(`Bet failed: ${reason}`, { duration: 5000 });
+      }
     }
   };
 
@@ -202,102 +316,170 @@ export default function CatSlots() {
     spinReels();
   };
 
-  const handleCopyAddress = () => address && navigator.clipboard.writeText(address).then(() => toast.success('Address copied!'));
+  const handleCopyAddress = () => {
+    if (address) {
+      navigator.clipboard.writeText(address).then(() => toast.success('Address copied!'));
+    }
+  };
 
   const memoizedReels = useMemo(() => reels, [reels]);
 
-  if (isConnecting) return <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-black to-purple-950 text-white text-lg text-cyan-400">Connecting...</div>;
-  if (!address) return null;
+  if (isConnecting) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-black to-purple-950 text-white text-lg text-cyan-400">
+        Connecting...
+      </div>
+    );
+  }
+
+  if (!address) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-black to-purple-950 text-white relative overflow-hidden">
-      <style jsx>{`
-        .particle {
-          position: absolute;
-          width: 12px;
-          height: 12px;
-          background: url('/cats/paw.png') no-repeat center;
-          background-size: contain;
-          animation: float 8s infinite ease-in-out;
-        }
-        @keyframes float {
-          0% { transform: translateY(0) rotate(0deg); opacity: 0.6; }
-          50% { opacity: 0.9; }
-          100% { transform: translateY(-100vh) rotate(360deg); opacity: 0.6; }
-        }
-        .sparkle {
-          position: absolute;
-          width: 8px;
-          height: 8px;
-          background: rgba(236, 72, 153, 0.8);
-          border-radius: 50%;
-          animation: sparkle 2s infinite ease-in-out;
-        }
-        @keyframes sparkle {
-          0% { transform: scale(0); opacity: 0; }
-          50% { transform: scale(1); opacity: 1; }
-          100% { transform: scale(0); opacity: 0; }
-        }
-      `}</style>
       <div className="absolute inset-0 pointer-events-none">
         {[...Array(15)].map((_, i) => (
-          <div key={`particle-${i}`} className="particle" style={{ left: `${Math.random() * 100}%`, animationDelay: `${Math.random() * 4}s` }} />
+          <div
+            key={`particle-${i}`}
+            className={styles.particle}
+            style={{ left: `${Math.random() * 100}%`, animationDelay: `${Math.random() * 4}s` }}
+          />
         ))}
-        {gameStatus === 'spinning' && [...Array(10)].map((_, i) => (
-          <div key={`sparkle-${i}`} className="sparkle" style={{ left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`, animationDelay: `${Math.random() * 1}s` }} />
-        ))}
+        {gameStatus === 'spinning' &&
+          [...Array(10)].map((_, i) => (
+            <div
+              key={`sparkle-${i}`}
+              className={styles.sparkle}
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 1}s`,
+              }}
+            />
+          ))}
       </div>
 
       <main className="flex-1 p-4 md:p-8 relative z-10">
-        <Toaster position="top-right" toastOptions={{ style: { background: '#1a1a1a', color: '#fff', border: '1px solid #9333ea' } }} />
-        {showConfetti && <Confetti width={window.innerWidth} height={window.innerHeight} recycle={false} numberOfPieces={300} />}
+        <Toaster
+          position="top-right"
+          toastOptions={{ style: { background: '#1a1a1a', color: '#fff', border: '1px solid #9333ea' } }}
+        />
+        {showConfetti && (
+          <Confetti width={window.innerWidth} height={window.innerHeight} recycle={false} numberOfPieces={300} />
+        )}
 
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <h1 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">Cat Slots</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">
+            Cat Slots
+          </h1>
           <Profile account={address} onCopyAddress={handleCopyAddress} onDisconnect={disconnect} />
         </div>
 
-        <motion.div className="bg-gradient-to-r from-black/90 to-purple-900/90 rounded-xl p-6 border border-pink-500 shadow-md shadow-pink-500/20 mb-6" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.5 }}>
+        <motion.div
+          className="bg-gradient-to-r from-black/90 to-purple-900/90 rounded-xl p-6 border border-pink-500 shadow-md shadow-pink-500/20 mb-6"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
           <h3 className="text-lg md:text-xl font-semibold text-purple-400 mb-4">Game Stats</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <p className="text-gray-300">Spin Points: <motion.span className="text-cyan-400 font-bold" key={points} initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.3 }}>{points}</motion.span></p>
-            <p className="text-gray-300">Best Score: <motion.span className="text-cyan-400 font-bold" key={bestScore} initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.3 }}>{bestScore}</motion.span></p>
-            <p className="text-gray-300">Mode: <span className="text-cyan-400 font-bold">{demoMode ? 'Demo' : 'Real'}</span></p>
+            <p className="text-gray-300">
+              Spin Points:{' '}
+              <motion.span
+                className="text-cyan-400 font-bold"
+                key={points}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                {points}
+              </motion.span>
+            </p>
+            <p className="text-gray-300">
+              Best Score:{' '}
+              <motion.span
+                className="text-cyan-400 font-bold"
+                key={bestScore}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                {bestScore}
+              </motion.span>
+            </p>
+            <p className="text-gray-300">
+              Mode: <span className="text-cyan-400 font-bold">{demoMode ? 'Demo' : 'Real'}</span>
+            </p>
           </div>
           <p className="text-center mt-4 text-lg font-semibold text-purple-400">
-            Status: {gameStatus === 'idle' ? 'Ready to Spin' : gameStatus === 'spinning' ? 'Spinning...' : gameStatus === 'won' ? 'You Won!' : 'Try Again!'}
+            Status:{' '}
+            {gameStatus === 'idle'
+              ? 'Ready to Spin'
+              : gameStatus === 'spinning'
+              ? 'Spinning...'
+              : gameStatus === 'won'
+              ? 'You Won!'
+              : 'Try Again!'}
           </p>
         </motion.div>
 
-        <div className="flex justify-center mb-6">
+        <div className="flex justify-center mb-6 relative">
           <motion.div
-            className="grid grid-cols-3 gap-4 bg-gray-900/80 p-6 rounded-xl border border-purple-900 w-full max-w-[600px] sm:w-1/2"
-            style={{ alignItems: 'center', justifyItems: 'center' }}
-            animate={gameStatus === 'won' ? { x: [0, 5, -5, 0], transition: { duration: 0.3, repeat: 2 } } : {}}
+            className="bg-gray-900/80 rounded-xl p-8 border border-purple-900 w-full max-w-[800px] min-h-[450px] mx-auto overflow-hidden"
+            style={{ boxSizing: 'border-box' }}
+            animate={
+              gameStatus === 'won'
+                ? { scale: [1, 1.05, 1], transition: { duration: 0.5, repeat: 2 } }
+                : {}
+            }
           >
-            {memoizedReels.map((reel, reelIndex) => (
-              <div key={reelIndex} className="relative overflow-hidden h-[204px]">
-                <motion.div
-                  animate={{ y: -((reel.offset % reel.symbols.length) * 68) }}
-                  transition={{ duration: gameStatus === 'spinning' ? SPIN_DURATION / 1000 : 0, ease: gameStatus === 'spinning' ? 'linear' : 'easeOut', delay: reelIndex * 0.1 }}
-                  className="flex flex-col gap-2"
-                >
-                  {reel.symbols.map((symbol, index) => (
-                    <div
-                      key={`${reelIndex}-${index}`}
-                      className={`flex items-center justify-center h-[64px] border border-purple-900/50 rounded-md box-border ${gameStatus === 'won' && index === 1 ? 'bg-green-600/50 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.7)]' : 'bg-gray-800/80'}`}
-                    >
-                      <motion.div
-                        animate={gameStatus === 'spinning' ? { rotateY: [0, 360], scale: [1, 1.3, 1], boxShadow: ['0 0 0 rgba(236,72,153,0)', '0 0 10px rgba(236,72,153,0.7)', '0 0 0 rgba(236,72,153,0)'] } : { rotateY: 0, scale: [1, 1.1, 1], boxShadow: '0 0 0 rgba(0,0,0,0)' }}
-                        transition={{ duration: 0.6, repeat: gameStatus === 'spinning' ? Infinity : 0, ease: 'easeInOut' }}
+            <div
+              className="grid grid-cols-3 gap-6 relative"
+              style={{ gridTemplateColumns: 'repeat(3, 120px)', justifyContent: 'center', alignItems: 'center' }}
+            >
+              {memoizedReels.map((reel, reelIndex) => (
+                <div key={reelIndex} className={styles.reelContainer} style={{ width: '120px', height: '360px' }}>
+                  <motion.div
+                    animate={
+                      gameStatus === 'spinning'
+                        ? { y: [0, -720, 0] }
+                        : { y: (reel.offset % 3) * 120 }
+                    }
+                    transition={{
+                      duration: gameStatus === 'spinning' ? 0.2 : SPIN_DURATION / 1000,
+                      ease: gameStatus === 'spinning' ? 'linear' : 'easeOut',
+                      repeat: gameStatus === 'spinning' ? Infinity : 0,
+                      delay: gameStatus === 'spinning' ? reelIndex * 0.05 : reelIndex * 0.3,
+                    }}
+                    className="flex flex-col gap-6"
+                    style={{ paddingTop: '6px', paddingBottom: '6px' }}
+                  >
+                    {reel.symbols.slice(0, 3).map((symbol, index) => (
+                      <div
+                        key={`${reelIndex}-${index}`}
+                        className={`flex items-center justify-center w-[120px] h-[120px] border border-purple-900/50 rounded-lg box-border ${
+                          highlightWin && getWinningCells(highlightWin.type).includes(`${reelIndex}-${index}`)
+                            ? 'bg-gradient-to-r from-cyan-500 to-pink-500 animate-pulse border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.8)]'
+                            : 'bg-gray-800/80'
+                        }`}
                       >
-                        <Image src={symbol} alt="Slot symbol" width={56} height={56} className="object-contain" />
-                      </motion.div>
-                    </div>
-                  ))}
-                </motion.div>
-              </div>
-            ))}
+                        <motion.div>
+                          <Image
+                            src={symbol}
+                            alt={`Slot symbol ${symbol.split('/').pop()?.replace('.png', '')}`}
+                            width={60}
+                            height={60}
+                            style={{ width: '60px', height: '60px', objectFit: 'contain' }}
+                            onError={(e) => (e.currentTarget.src = '/cats/fallback.png')}
+                          />
+                        </motion.div>
+                      </div>
+                    ))}
+                  </motion.div>
+                </div>
+              ))}
+            </div>
           </motion.div>
         </div>
 
@@ -307,9 +489,27 @@ export default function CatSlots() {
               <motion.button
                 onClick={placeBet}
                 disabled={isPending || !address || gameStatus === 'spinning'}
-                className={`px-6 py-3 rounded-lg text-base font-semibold text-white ${isPending || !address || gameStatus === 'spinning' ? 'bg-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 shadow-[0_0_15px_rgba(147,51,234,0.5)]'}`}
-                animate={gameStatus === 'spinning' ? { rotate: 360, transition: { duration: 1, repeat: Infinity, ease: 'linear' } } : { scale: [1, 1.05, 1], boxShadow: ['0 0 5px rgba(147,51,234,0.5)', '0 0 15px rgba(147,51,234,0.7)', '0 0 5px rgba(147,51,234,0.5)'] }}
-                transition={{ repeat: gameStatus !== 'spinning' ? Infinity : 0, duration: gameStatus === 'spinning' ? 1 : 1.5 }}
+                className={`px-6 py-3 rounded-lg text-base font-semibold text-white ${
+                  isPending || !address || gameStatus === 'spinning'
+                    ? 'bg-gray-600 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 shadow-[0_0_15px_rgba(147,51,234,0.5)]'
+                }`}
+                animate={
+                  gameStatus === 'spinning'
+                    ? { rotate: 360, transition: { duration: 1, repeat: Infinity, ease: 'linear' } }
+                    : {
+                        scale: [1, 1.05, 1],
+                        boxShadow: [
+                          '0 0 5px rgba(147,51,234,0.5)',
+                          '0 0 15px rgba(147,51,234,0.7)',
+                          '0 0 5px rgba(147,51,234,0.5)',
+                        ],
+                      }
+                }
+                transition={{
+                  repeat: gameStatus !== 'spinning' ? Infinity : 0,
+                  duration: gameStatus === 'spinning' ? 1 : 1.5,
+                }}
                 whileHover={{ scale: 1.1, boxShadow: '0 0 20px rgba(147,51,234,0.7)' }}
                 whileTap={{ scale: 0.9 }}
                 aria-label={`Spin reels for ${INITIAL_BET} MON`}
@@ -319,8 +519,19 @@ export default function CatSlots() {
               <motion.button
                 onClick={startDemoGame}
                 disabled={gameStatus === 'spinning'}
-                className={`px-6 py-3 rounded-lg text-base font-semibold text-white ${gameStatus === 'spinning' ? 'bg-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.5)]'}`}
-                animate={{ scale: [1, 1.05, 1], boxShadow: ['0 0 5px rgba(59,130,246,0.5)', '0 0 15px rgba(59,130,246,0.7)', '0 0 5px rgba(59,130,246,0.5)'] }}
+                className={`px-6 py-3 rounded-lg text-base font-semibold text-white ${
+                  gameStatus === 'spinning'
+                    ? 'bg-gray-600 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.5)]'
+                }`}
+                animate={{
+                  scale: [1, 1.05, 1],
+                  boxShadow: [
+                    '0 0 5px rgba(59,130,246,0.5)',
+                    '0 0 15px rgba(59,130,246,0.7)',
+                    '0 0 5px rgba(59,130,246,0.5)',
+                  ],
+                }}
                 transition={{ repeat: Infinity, duration: 1.5 }}
                 whileHover={{ scale: 1.1, boxShadow: '0 0 20px rgba(59,130,246,0.7)' }}
                 whileTap={{ scale: 0.9 }}
@@ -336,9 +547,18 @@ export default function CatSlots() {
                 initializeReels();
                 setGameStatus('idle');
                 setPoints(0);
+                setHighlightWin(null);
+                setShowConfetti(false);
               }}
               className="px-6 py-3 rounded-lg text-base font-semibold text-white bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 shadow-[0_0_15px_rgba(147,51,234,0.5)]"
-              animate={{ scale: [1, 1.05, 1], boxShadow: ['0 0 5px rgba(147,51,234,0.5)', '0 0 15px rgba(147,51,234,0.7)', '0 0 5px rgba(147,51,234,0.5)'] }}
+              animate={{
+                scale: [1, 1.05, 1],
+                boxShadow: [
+                  '0 0 5px rgba(147,51,234,0.5)',
+                  '0 0 15px rgba(147,51,234,0.7)',
+                  '0 0 5px rgba(147,51,234,0.5)',
+                ],
+              }}
               transition={{ repeat: Infinity, duration: 1.5 }}
               whileHover={{ scale: 1.1, boxShadow: '0 0 20px rgba(147,51,234,0.7)' }}
               whileTap={{ scale: 0.9 }}
