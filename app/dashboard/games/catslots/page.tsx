@@ -29,6 +29,7 @@ const TOAST_DELAY = 2000; // 2 seconds
 const INITIAL_BET = 0.001;
 const BASE_ICON_HEIGHT = 120; // Base height for desktop
 const NUM_ICONS = SYMBOLS.length;
+const SPIN_CYCLES = 5; // Number of full reel cycles during spin
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CASLOTS_CONTRACT_ADDRESS || '0xd9145CCE52D386f254917e481eB44e9943F39138';
 const contractAbi = [
   { type: 'function', name: 'placeBet', inputs: [], outputs: [], stateMutability: 'payable' },
@@ -84,18 +85,22 @@ export default function CatSlots() {
     });
   }, []);
 
+  const generateRandomSymbols = (length: number) => {
+    return Array(length)
+      .fill(null)
+      .map(() => {
+        const rand = Math.random();
+        return rand < 0.05
+          ? WILD_SYMBOL
+          : SYMBOLS[Math.floor(Math.random() * (SYMBOLS.length - 1))];
+      });
+  };
+
   const initializeReels = useCallback(() => {
     const newReels = Array(REEL_SIZE)
       .fill(null)
       .map(() => ({
-        symbols: Array(30)
-          .fill(null)
-          .map(() => {
-            const rand = Math.random();
-            return rand < 0.05
-              ? WILD_SYMBOL
-              : SYMBOLS[Math.floor(Math.random() * (SYMBOLS.length - 1))];
-          }),
+        symbols: generateRandomSymbols(3), // Only 3 symbols initially
         offset: 0,
       }));
     setReels(newReels);
@@ -193,16 +198,6 @@ export default function CatSlots() {
     []
   );
 
-  const generateRandomReel = () =>
-    Array(30)
-      .fill(null)
-      .map(() => {
-        const rand = Math.random();
-        return rand < 0.05
-          ? WILD_SYMBOL
-          : SYMBOLS[Math.floor(Math.random() * (SYMBOLS.length - 1))];
-      });
-
   const handleNewGame = useCallback(() => {
     setGameStarted(false);
     initializeReels();
@@ -230,55 +225,61 @@ export default function CatSlots() {
     }
     playSound('spin');
 
-    const tempReels = Array(REEL_SIZE)
+    // Generate final symbols for the reels
+    const finalReels = Array(REEL_SIZE)
       .fill(null)
       .map(() => ({
-        symbols: generateRandomReel(),
+        symbols: generateRandomSymbols(3), // Final 3 symbols
         offset: 0,
       }));
-    setReels(tempReels);
 
-    reelRefs.current.forEach((reel) => {
+    // Create extended reel symbols for animation (prepend symbols for spin effect)
+    const totalSpinSymbols = SPIN_CYCLES * NUM_ICONS + 3; // Enough symbols for spin cycles + final 3
+    const extendedReels = finalReels.map((reel) => {
+      const prependedSymbols = generateRandomSymbols(totalSpinSymbols - 3);
+      return {
+        symbols: [...prependedSymbols, ...reel.symbols], // Prepend random symbols, end with final symbols
+        offset: 0,
+      };
+    });
+
+    setReels(extendedReels);
+
+    reelRefs.current.forEach((reel, reelIndex) => {
       if (reel) {
-        const delta = NUM_ICONS + Math.round(Math.random() * NUM_ICONS);
-        const startTranslateY = 0;
-        const targetTranslateY = -delta * iconHeight;
+        // Calculate translation to move through all symbols and stop at the final 3
+        const totalTranslateY = -(totalSpinSymbols - 3) * iconHeight; // Stop at the last 3 symbols
 
+        // Reset reel position
         reel.style.transition = 'none';
-        reel.style.transform = `translateY(${startTranslateY}px)`;
+        reel.style.transform = 'translateY(0)';
         reel.classList.remove(styles.spinning);
         void reel.offsetWidth;
 
+        // Start spin animation
         setTimeout(() => {
           reel.classList.add(styles.spinning);
-          reel.style.transition = `transform ${SPIN_DURATION}ms cubic-bezier(0.41,-0.01,0.63,1.09)`;
-          reel.style.transform = `translateY(${targetTranslateY}px)`;
+          reel.style.transition = `transform ${SPIN_DURATION}ms cubic-bezier(0.41, -0.01, 0.63, 1.09)`;
+          reel.style.transform = `translateY(${totalTranslateY}px)`;
         }, 10);
 
+        // Stop animation and set final symbols
         setTimeout(() => {
-          reel.style.transition = 'transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1.5)';
-          reel.style.transform = `translateY(0px)`;
+          reel.style.transition = 'transform 0.4s ease-out'; // Smooth slowing effect
+          reel.style.transform = 'translateY(0)';
           reel.classList.remove(styles.spinning);
+
+          // Update reels to final symbols only
+          setReels((prevReels) =>
+            prevReels.map((r, i) => (i === reelIndex ? { symbols: finalReels[i].symbols, offset: 0 } : r))
+          );
         }, SPIN_DURATION);
       }
     });
 
+    // Evaluate win after animation
     setTimeout(() => {
-      const finalReels = Array(REEL_SIZE)
-        .fill(null)
-        .map(() => ({
-          symbols: generateRandomReel(),
-          offset: 0,
-        }));
-      setReels(finalReels);
-
-      reelRefs.current.forEach((reel) => {
-        if (reel) {
-          reel.style.transition = 'none';
-          reel.style.transform = 'translateY(0)';
-          reel.classList.remove(styles.spinning);
-        }
-      });
+      setReels(finalReels); // Ensure state is finalReels for win calculation
 
       const grid = finalReels.map((reel) => [
         reel.symbols[0],
@@ -414,12 +415,12 @@ export default function CatSlots() {
               <div>
                 Bet placed!{' '}
                 <a
-                  href={`https://testnet.monadscan.com/tx/${txHash}`}
+                  href={`https://testnet.monadexplorer.com/tx/${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline text-cyan-400"
                 >
-                  View on MonadScan
+                  View on MonadExplorer
                 </a>
               </div>,
               { duration: 4000 }
@@ -507,9 +508,9 @@ export default function CatSlots() {
           position="top-right"
           toastOptions={{
             style: {
-              background: '#ffffff',
-              color: '#333333',
-              border: '1px solid #e0e0e0',
+              background: '#1a1a1a',
+              color: '#fff',
+              border: '1px solid #9333ea',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
               padding: '12px 16px',
               borderRadius: '8px',
@@ -617,45 +618,45 @@ export default function CatSlots() {
                   style={{ width: `${iconHeight}px`, height: `${iconHeight * 3}px` }}
                 >
                   <motion.div
-                    ref={(el) => { reelRefs.current[reelIndex] = el; }}
+                    ref={(el) => {
+                      reelRefs.current[reelIndex] = el;
+                    }}
                     className={`${styles.reelEmoji} ${gameStatus === 'spinning' ? styles.spinning : ''}`}
                   >
-                    {(gameStatus === 'spinning' ? reel.symbols.slice(0, 30) : reel.symbols.slice(0, 3)).map(
-                      (symbol, index) => (
+                    {reel.symbols.map((symbol, index) => (
+                      <motion.div
+                        key={`${reelIndex}-${index}`}
+                        className={styles.emojiSlot}
+                        style={{ height: `${iconHeight}px` }}
+                      >
                         <motion.div
-                          key={`${reelIndex}-${index}`}
-                          className={styles.emojiSlot}
-                          style={{ height: `${iconHeight}px` }}
+                          className={`${styles.slot} ${
+                            gameStatus === 'won' &&
+                            winningPositions.some(
+                              ([winReel, winIndex]) => winReel === reelIndex && winIndex === index
+                            )
+                              ? styles.winning
+                              : ''
+                          }`}
+                          animate={
+                            gameStatus === 'won' &&
+                            winningPositions.some(
+                              ([winReel, winIndex]) => winReel === reelIndex && winIndex === index
+                            )
+                              ? { scale: [1, 1.1, 1], transition: { duration: 0.4, repeat: 2, ease: 'easeInOut' } }
+                              : {}
+                          }
                         >
-                          <motion.div
-                            className={`${styles.slot} ${
-                              gameStatus === 'won' &&
-                              winningPositions.some(
-                                ([winReel, winIndex]) => winReel === reelIndex && winIndex === index
-                              )
-                                ? styles.winning
-                                : ''
-                            }`}
-                            animate={
-                              gameStatus === 'won' &&
-                              winningPositions.some(
-                                ([winReel, winIndex]) => winReel === reelIndex && winIndex === index
-                              )
-                                ? { scale: [1, 1.1, 1], transition: { duration: 0.4, repeat: 2, ease: 'easeInOut' } }
-                                : {}
-                            }
-                          >
-                            <Image
-                              src={symbol}
-                              alt="slot symbol"
-                              width={iconHeight * 0.4}
-                              height={iconHeight * 0.4}
-                              style={{ objectFit: 'contain' }}
-                            />
-                          </motion.div>
+                          <Image
+                            src={symbol}
+                            alt="slot symbol"
+                            width={iconHeight * 0.4}
+                            height={iconHeight * 0.4}
+                            style={{ objectFit: 'contain' }}
+                          />
                         </motion.div>
-                      )
-                    )}
+                      </motion.div>
+                    ))}
                   </motion.div>
                 </div>
               ))}
