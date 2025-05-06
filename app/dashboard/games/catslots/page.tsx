@@ -94,7 +94,7 @@ export default function CatSlots() {
   const playSound = (type: 'spin' | 'win') =>
     new Audio(`/sounds/${type}.mp3`).play().catch((err) => console.error('Audio failed:', err));
 
-  const cashOut = async (currentPoints: number) => {
+  const cashOut = useCallback(async (currentPoints: number) => {
     if (!address || demoMode) return;
     const pendingToast = toast.loading('Cashing out...');
     try {
@@ -116,7 +116,7 @@ export default function CatSlots() {
       toast.dismiss(pendingToast);
       toast.error('Failed to cash out.');
     }
-  };
+  }, [address, demoMode]);
 
   const getWinningCells = (winType: string): string[] => {
     switch (winType) {
@@ -242,7 +242,7 @@ export default function CatSlots() {
         }
       }, MODAL_DELAY);
     }, SPIN_DURATION);
-  }, [reels, gameStatus, demoMode, cashOut, checkPaylineWin]);
+  }, [gameStatus, demoMode, cashOut, checkPaylineWin]);
 
   const placeBet = async () => {
     if (!address) return toast.error('Please connect your wallet');
@@ -284,10 +284,10 @@ export default function CatSlots() {
           },
         }
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.dismiss(pendingToast);
-      const reason = error.reason || error.message || 'Unknown error';
-      if (reason.includes('insufficient funds') || reason.includes('Insufficient MON balance')) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      if (message.includes('insufficient funds') || message.includes('Insufficient MON balance')) {
         toast.error(
           <div>
             Insufficient MON balance.{' '}
@@ -302,10 +302,10 @@ export default function CatSlots() {
           </div>,
           { duration: 5000 }
         );
-      } else if (reason.includes('revert')) {
+      } else if (message.includes('revert')) {
         toast.error('Bet failed: Transaction reverted.', { duration: 5000 });
       } else {
-        toast.error(`Bet failed: ${reason}`, { duration: 5000 });
+        toast.error(`Bet failed: ${message}`, { duration: 5000 });
       }
     }
   };
