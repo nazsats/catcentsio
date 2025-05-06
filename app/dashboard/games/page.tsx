@@ -5,15 +5,50 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { db } from '../../../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, runTransaction } from 'firebase/firestore';
 import Profile from '../../../components/Profile';
 import Loader from '../../../components/Loader';
 import toast, { Toaster } from 'react-hot-toast';
-import { useAccount, useDisconnect } from 'wagmi';
+import { useAccount, useDisconnect, useWriteContract, useSwitchChain } from 'wagmi';
+import { monadTestnet } from '@reown/appkit/networks';
+
+const CLAIM_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CLAIM_CONTRACT_ADDRESS || '0xcB4769D9534006BF0934e72d71E7280c83E45B4B'; // Replace with deployed contract address
+const claimContractAbi = [
+  {
+    type: 'function',
+    name: 'claim',
+    inputs: [{ name: 'points', type: 'uint256' }],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'tokensPerClaim',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'pointsPerClaim',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'getPoolBalance',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+];
 
 export default function Games() {
   const { address, isConnecting } = useAccount();
   const { disconnect } = useDisconnect();
+  const { switchChain } = useSwitchChain();
+  const { writeContract, isPending } = useWriteContract();
   const [gamesGmeow, setGamesGmeow] = useState(0);
   const [gameScores, setGameScores] = useState<{ [key: string]: number }>({});
   const router = useRouter();
@@ -28,7 +63,7 @@ export default function Games() {
         setGamesGmeow(Math.floor(data.gamesGmeow || 0));
         setGameScores({
           catsweeper: data.minesweeperBestScore || 0,
-          catslots: data.catslotsBestScore || 0, // Added catslotsBestScore
+          catslots: data.catslotsBestScore || 0,
         });
       }
     } catch (error) {
@@ -58,6 +93,69 @@ export default function Games() {
     }
   };
 
+  const handleClaim = async () => {
+    if (!address) return toast.error('Please connect your wallet');
+    if (gamesGmeow < 250) return toast.error('Need at least 250 Meow Miles to claim!');
+
+    const pointsToSpend = Math.floor(gamesGmeow / 250) * 250;
+    const pendingToast = toast.loading('Claiming MON tokens...');
+
+    try {
+      await switchChain({ chainId: monadTestnet.id });
+      writeContract(
+        {
+          address: CLAIM_CONTRACT_ADDRESS as `0x${string}`,
+          abi: claimContractAbi,
+          functionName: 'claim',
+          args: [pointsToSpend],
+        },
+        {
+          onSuccess: async (txHash) => {
+            // Update Firebase
+            try {
+              await runTransaction(db, async (transaction) => {
+                const userRef = doc(db, 'users', address);
+                const userDoc = await transaction.get(userRef);
+                if (!userDoc.exists()) throw new Error('User not found');
+                transaction.update(userRef, {
+                  gamesGmeow: (userDoc.data().gamesGmeow || 0) - pointsToSpend,
+                  updatedAt: new Date().toISOString(),
+                });
+              });
+              setGamesGmeow((prev) => prev - pointsToSpend);
+              toast.dismiss(pendingToast);
+              toast.success(
+                <div>
+                  Claimed {(pointsToSpend / 250 * 0.025).toFixed(3)} MON tokens!{' '}
+                  <a
+                    href={`https://testnet.monadexplorer.com/tx/${txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-cyan-400"
+                  >
+                    View on MonadExplorer
+                  </a>
+                </div>,
+                { duration: 4000 }
+              );
+            } catch (error) {
+              toast.dismiss(pendingToast);
+              toast.error('Failed to update points.');
+            }
+          },
+          onError: (error) => {
+            toast.dismiss(pendingToast);
+            toast.error(`Claim failed: ${error.message}`, { duration: 4000 });
+          },
+        }
+      );
+    } catch (error: unknown) {
+      toast.dismiss(pendingToast);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Claim failed: ${message}`, { duration: 4000 });
+    }
+  };
+
   if (isConnecting) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-black to-purple-950 text-white">
@@ -79,7 +177,7 @@ export default function Games() {
       id: 'catslots',
       title: 'Cat Slots',
       description: 'Spin the reels with cute cats to win Meow Miles!',
-      image: '/games/catslots.png', // Update with appropriate image
+      image: '/games/catslots.png',
     },
     {
       id: 'race',
@@ -119,7 +217,7 @@ export default function Games() {
 
         {/* Welcome Content */}
         <div className="text-center mb-6 md:mb-8 px-4">
-          <h1 className="text-xl md:text-2xl font-extrabold bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 bg-clip-text text-transparent mb-3">
+          <h1 className="text-xl arrested  md:text-2xl font-extrabold bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 bg-clip-text text-transparent mb-3">
             Welcome to the Catcents Playground
           </h1>
           <p className="text-sm md:text-base text-gray-300 max-w-2xl mx-auto leading-relaxed">
@@ -142,6 +240,17 @@ export default function Games() {
             <p className="text-gray-300">
               Total Meow Miles: <span className="text-cyan-400 font-bold">{gamesGmeow}</span>
             </p>
+            <button
+              onClick={handleClaim}
+              disabled={isPending || gamesGmeow < 250}
+              className={`px-4 py-2 rounded-lg text-sm md:text-base font-semibold text-white transition-all duration-200 ${
+                isPending || gamesGmeow < 250
+                  ? 'bg-gray-600 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400'
+              }`}
+            >
+              {isPending ? 'Claiming...' : 'Claim Game Revenue'}
+            </button>
           </div>
         </div>
 
