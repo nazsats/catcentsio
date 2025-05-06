@@ -51,6 +51,8 @@ export default function Games() {
   const { writeContract, isPending } = useWriteContract();
   const [gamesGmeow, setGamesGmeow] = useState(0);
   const [gameScores, setGameScores] = useState<{ [key: string]: number }>({});
+  const [claimCount, setClaimCount] = useState(0); // Track number of claims
+  const [lastClaimAmount, setLastClaimAmount] = useState<number | null>(null); // Track last claimed MON
   const router = useRouter();
   const [hasRedirected, setHasRedirected] = useState(false);
 
@@ -65,6 +67,8 @@ export default function Games() {
           catsweeper: data.minesweeperBestScore || 0,
           catslots: data.catslotsBestScore || 0,
         });
+        setClaimCount(data.claimCount || 0); // Load claim count
+        setLastClaimAmount(data.lastClaimAmount || null); // Load last claim amount
       }
     } catch (error) {
       console.error('Failed to fetch game scores:', error);
@@ -95,9 +99,14 @@ export default function Games() {
 
   const handleClaim = async () => {
     if (!address) return toast.error('Please connect your wallet');
-    if (gamesGmeow < 250) return toast.error('Need at least 250 Meow Miles to claim!');
+    
+    const nextClaimThreshold = (claimCount + 1) * 250; // Next threshold: 250, 500, 750, ...
+    if (gamesGmeow < nextClaimThreshold) {
+      return toast.error(`Need at least ${nextClaimThreshold} Meow Miles to claim!`);
+    }
 
-    const pointsToSpend = Math.floor(gamesGmeow / 250) * 250;
+    const pointsToSpend = nextClaimThreshold; // Claim exactly the threshold amount
+    const monToClaim = (pointsToSpend / 250 * 0.025); // Calculate MON tokens
     const pendingToast = toast.loading('Claiming MON tokens...');
 
     try {
@@ -111,22 +120,24 @@ export default function Games() {
         },
         {
           onSuccess: async (txHash) => {
-            // Update Firebase
+            // Update Firebase with claim count and last claim amount
             try {
               await runTransaction(db, async (transaction) => {
                 const userRef = doc(db, 'users', address);
                 const userDoc = await transaction.get(userRef);
                 if (!userDoc.exists()) throw new Error('User not found');
                 transaction.update(userRef, {
-                  gamesGmeow: (userDoc.data().gamesGmeow || 0) - pointsToSpend,
+                  claimCount: (userDoc.data().claimCount || 0) + 1,
+                  lastClaimAmount: monToClaim,
                   updatedAt: new Date().toISOString(),
                 });
               });
-              setGamesGmeow((prev) => prev - pointsToSpend);
+              setClaimCount((prev) => prev + 1); // Increment claim count
+              setLastClaimAmount(monToClaim); // Update last claim amount
               toast.dismiss(pendingToast);
               toast.success(
                 <div>
-                  Claimed {(pointsToSpend / 250 * 0.025).toFixed(3)} MON tokens!{' '}
+                  Claimed {monToClaim.toFixed(3)} MON tokens!{' '}
                   <a
                     href={`https://testnet.monadexplorer.com/tx/${txHash}`}
                     target="_blank"
@@ -189,6 +200,8 @@ export default function Games() {
     },
   ];
 
+  const nextClaimThreshold = (claimCount + 1) * 250; // Calculate next threshold for UI
+
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-black to-purple-950 text-white">
       <main className="flex-1 p-4 md:p-8">
@@ -238,19 +251,27 @@ export default function Games() {
         <div className="bg-black/90 rounded-xl p-6 border border-purple-900 shadow-md shadow-purple-500/20 mb-6 md:mb-8">
           <h3 className="text-lg md:text-xl font-semibold text-purple-400 mb-4">Your Game Stats</h3>
           <div className="flex flex-col sm:flex-row justify-between gap-4">
-            <p className="text-gray-300">
-              Total Meow Miles: <span className="text-cyan-400 font-bold">{gamesGmeow}</span>
-            </p>
+            <div className="flex flex-col gap-2">
+              <p className="text-gray-300">
+                Total Meow Miles: <span className="text-cyan-400 font-bold">{gamesGmeow}</span>
+              </p>
+              <p className="text-gray-300">
+                Last Claimed:{' '}
+                <span className="text-cyan-400 font-bold">
+                  {lastClaimAmount ? `${lastClaimAmount.toFixed(3)} MON` : 'None'}
+                </span>
+              </p>
+            </div>
             <button
               onClick={handleClaim}
-              disabled={isPending || gamesGmeow < 250}
+              disabled={isPending || gamesGmeow < nextClaimThreshold}
               className={`px-4 py-2 rounded-lg text-sm md:text-base font-semibold text-white transition-all duration-200 ${
-                isPending || gamesGmeow < 250
+                isPending || gamesGmeow < nextClaimThreshold
                   ? 'bg-gray-600 cursor-not-allowed'
                   : 'bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400'
               }`}
             >
-              {isPending ? 'Claiming...' : 'Claim Game Revenue'}
+              {isPending ? 'Claiming...' : `Claim ${nextClaimThreshold} Meow Miles`}
             </button>
           </div>
         </div>

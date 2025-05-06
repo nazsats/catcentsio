@@ -8,7 +8,7 @@ console.log('DISCORD_BOT_TOKEN:', process.env.DISCORD_BOT_TOKEN || 'Undefined');
 
 // Initialize Firebase Admin using JSON file
 admin.initializeApp({
-  credential: admin.credential.cert('./firebase-service-account.json'),
+  credential: admin.credential.cert(process.env.FIREBASE_SERVICE_ACCOUNT_PATH),
 });
 const db = admin.firestore();
 
