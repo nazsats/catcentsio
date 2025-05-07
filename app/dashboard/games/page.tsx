@@ -12,7 +12,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { useAccount, useDisconnect, useWriteContract, useSwitchChain } from 'wagmi';
 import { monadTestnet } from '@reown/appkit/networks';
 
-const CLAIM_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CLAIM_CONTRACT_ADDRESS || '0xcB4769D9534006BF0934e72d71E7280c83E45B4B';
+const CLAIM_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CLAIM_CONTRACT_ADDRESS || '0xdC41856d92F1415AB55C2Ee76Eda305db1a61b77';
 const claimContractAbi = [
   {
     type: 'function',
@@ -53,6 +53,7 @@ export default function Games() {
   const [gameScores, setGameScores] = useState<{ [key: string]: number }>({});
   const [claimCount, setClaimCount] = useState(0);
   const [lastClaimAmount, setLastClaimAmount] = useState<number | null>(null);
+  const [claimedThresholds, setClaimedThresholds] = useState<number[]>([]); // Store claimed thresholds
   const router = useRouter();
   const [hasRedirected, setHasRedirected] = useState(false);
 
@@ -69,6 +70,7 @@ export default function Games() {
         });
         setClaimCount(data.claimCount || 0);
         setLastClaimAmount(data.lastClaimAmount || null);
+        setClaimedThresholds(data.claimedThresholds || []);
       }
     } catch (error) {
       console.error('Failed to fetch game scores:', error);
@@ -102,10 +104,10 @@ export default function Games() {
 
     const nextClaimThreshold = (claimCount + 1) * 1000; // Next threshold: 1000, 2000, 3000, ...
     if (gamesGmeow < nextClaimThreshold) {
-      return toast.error(`You need at least ${nextClaimThreshold} Meow Miles to claim!`, { duration: 4000 });
+      return toast.error(`You need at least ${nextClaimThreshold} Meow Miles to claim 0.025 MON!`, { duration: 4000 });
     }
 
-    const pointsToSpend = nextClaimThreshold;
+    const pointsToSend = nextClaimThreshold; // Send exact threshold points to contract
     const monToClaim = 0.025; // Always claim 0.025 MON
     const pendingToast = toast.loading('Claiming 0.025 MON tokens...');
 
@@ -116,7 +118,7 @@ export default function Games() {
           address: CLAIM_CONTRACT_ADDRESS as `0x${string}`,
           abi: claimContractAbi,
           functionName: 'claim',
-          args: [pointsToSpend],
+          args: [pointsToSend],
         },
         {
           onSuccess: async (txHash) => {
@@ -125,7 +127,9 @@ export default function Games() {
                 const userRef = doc(db, 'users', address);
                 const userDoc = await transaction.get(userRef);
                 if (!userDoc.exists()) throw new Error('User not found');
+                const currentThresholds = userDoc.data().claimedThresholds || [];
                 transaction.update(userRef, {
+                  claimedThresholds: [...currentThresholds, nextClaimThreshold], // Store the claimed threshold
                   claimCount: (userDoc.data().claimCount || 0) + 1,
                   lastClaimAmount: monToClaim,
                   updatedAt: new Date().toISOString(),
@@ -133,6 +137,7 @@ export default function Games() {
               });
               setClaimCount((prev) => prev + 1);
               setLastClaimAmount(monToClaim);
+              setClaimedThresholds((prev) => [...prev, nextClaimThreshold]); // Update local state
               toast.dismiss(pendingToast);
               toast.success(
                 <div>
@@ -157,15 +162,10 @@ export default function Games() {
           onError: (error) => {
             toast.dismiss(pendingToast);
             const errorMessage = error.message.toLowerCase();
-            if (
-              errorMessage.includes('already claimed') ||
-              errorMessage.includes('revert') ||
-              errorMessage.includes('cannot claim again')
-            ) {
-              toast.error(
-                `You already claimed at this level! Earn ${nextClaimThreshold + 1000} Meow Miles to claim again.`,
-                { duration: 4000 }
-              );
+            if (errorMessage.includes('insufficient points')) {
+              toast.error(`You need ${nextClaimThreshold} Meow Miles to claim!`, { duration: 4000 });
+            } else if (errorMessage.includes('insufficient tokens')) {
+              toast.error('Contract has insufficient funds. Try again later.', { duration: 4000 });
             } else {
               toast.error(`Claim failed: ${error.message}`, { duration: 4000 });
             }
@@ -212,7 +212,7 @@ export default function Games() {
   ];
 
   const nextClaimThreshold = (claimCount + 1) * 1000;
-  const hasClaimedAtCurrentLevel = gamesGmeow < nextClaimThreshold && claimCount > 0 && gamesGmeow >= claimCount * 1000;
+  const hasClaimedAtCurrentLevel = claimedThresholds.includes(nextClaimThreshold);
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-black to-purple-950 text-white">
@@ -273,6 +273,9 @@ export default function Games() {
                   {lastClaimAmount ? `${lastClaimAmount.toFixed(3)} MON` : 'None'}
                 </span>
               </p>
+              <p className="text-gray-300">
+                Next Claim: <span className="text-cyan-400 font-bold">{nextClaimThreshold} Meow Miles</span>
+              </p>
             </div>
             <div className="flex flex-col gap-2">
               <button
@@ -284,11 +287,11 @@ export default function Games() {
                     : 'bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400'
                 }`}
               >
-                {isPending ? 'Claiming...' : `Claim $MONAD `}
+                {isPending ? 'Claiming...' : `Claim $MONAD`}
               </button>
               {hasClaimedAtCurrentLevel && (
                 <p className="text-sm text-yellow-400">
-                  You already claimed at this level! Earn {nextClaimThreshold} Meow Miles for your next claim.
+                  You already claimed at {nextClaimThreshold} Meow Miles! Earn {nextClaimThreshold + 1000} Meow Miles for your next claim.
                 </p>
               )}
             </div>
