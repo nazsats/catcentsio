@@ -18,7 +18,7 @@ const MAX_REVEALS_PER_CLICK = 10; // Max cells revealed per click
 const MULTI_REVEAL_PROBABILITY = 0.2; // 20% chance for multiple reveals
 const MAX_EXTRA_REVEALS = 4; // Max extra cells when multi-reveal triggers
 
-const CONTRACT_ADDRESS = '0xd9145CCE52D386f254917e481eB44e9943F39138';
+const CONTRACT_ADDRESS = '0xdbCc4cFe9e90D8AecfC46eaeB418Fd6557999D98';
 const contractAbi = [
   {
     type: 'function',
