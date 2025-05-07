@@ -100,14 +100,14 @@ export default function Games() {
   const handleClaim = async () => {
     if (!address) return toast.error('Please connect your wallet');
 
-    const nextClaimThreshold = (claimCount + 1) * 250; // Next threshold: 250, 500, 750, ...
+    const nextClaimThreshold = (claimCount + 1) * 1000; // Next threshold: 1000, 2000, 3000, ...
     if (gamesGmeow < nextClaimThreshold) {
       return toast.error(`You need at least ${nextClaimThreshold} Meow Miles to claim!`, { duration: 4000 });
     }
 
     const pointsToSpend = nextClaimThreshold;
-    const monToClaim = (pointsToSpend / 250 * 0.025);
-    const pendingToast = toast.loading('Claiming MON tokens...');
+    const monToClaim = 0.025; // Always claim 0.025 MON
+    const pendingToast = toast.loading('Claiming 0.025 MON tokens...');
 
     try {
       await switchChain({ chainId: monadTestnet.id });
@@ -120,7 +120,6 @@ export default function Games() {
         },
         {
           onSuccess: async (txHash) => {
-            // Update Firebase with claim count and last claim amount
             try {
               await runTransaction(db, async (transaction) => {
                 const userRef = doc(db, 'users', address);
@@ -137,7 +136,7 @@ export default function Games() {
               toast.dismiss(pendingToast);
               toast.success(
                 <div>
-                  Claimed {monToClaim.toFixed(3)} MON tokens!{' '}
+                  Claimed 0.025 MON tokens!{' '}
                   <a
                     href={`https://testnet.monadexplorer.com/tx/${txHash}`}
                     target="_blank"
@@ -157,7 +156,6 @@ export default function Games() {
           },
           onError: (error) => {
             toast.dismiss(pendingToast);
-            // Check for "already claimed" or revert errors
             const errorMessage = error.message.toLowerCase();
             if (
               errorMessage.includes('already claimed') ||
@@ -165,7 +163,7 @@ export default function Games() {
               errorMessage.includes('cannot claim again')
             ) {
               toast.error(
-                `You already claimed at this level! Earn more Meow Miles to claim again.`,
+                `You already claimed at this level! Earn ${nextClaimThreshold + 1000} Meow Miles to claim again.`,
                 { duration: 4000 }
               );
             } else {
@@ -213,7 +211,8 @@ export default function Games() {
     },
   ];
 
-  const nextClaimThreshold = (claimCount + 1) * 250;
+  const nextClaimThreshold = (claimCount + 1) * 1000;
+  const hasClaimedAtCurrentLevel = gamesGmeow < nextClaimThreshold && claimCount > 0 && gamesGmeow >= claimCount * 1000;
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-black to-purple-950 text-white">
@@ -275,17 +274,24 @@ export default function Games() {
                 </span>
               </p>
             </div>
-            <button
-              onClick={handleClaim}
-              disabled={isPending} // Only disable during pending transaction
-              className={`px-4 py-2 rounded-lg text-sm md:text-base font-semibold text-white transition-all duration-200 ${
-                isPending
-                  ? 'bg-gray-600 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400'
-              }`}
-            >
-              {isPending ? 'Claiming...' : `Claim ${nextClaimThreshold} Meow Miles`}
-            </button>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleClaim}
+                disabled={isPending || hasClaimedAtCurrentLevel}
+                className={`px-4 py-2 rounded-lg text-sm md:text-base font-semibold text-white transition-all duration-200 ${
+                  isPending || hasClaimedAtCurrentLevel
+                    ? 'bg-gray-600 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400'
+                }`}
+              >
+                {isPending ? 'Claiming...' : `Claim $MONAD `}
+              </button>
+              {hasClaimedAtCurrentLevel && (
+                <p className="text-sm text-yellow-400">
+                  You already claimed at this level! Earn {nextClaimThreshold} Meow Miles for your next claim.
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
