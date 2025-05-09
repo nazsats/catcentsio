@@ -11,7 +11,11 @@ import Profile from '@/components/Profile';
 
 interface UserData {
   walletAddress: string;
-  meowMiles: number;
+  totalMeowMiles: number; // Renamed to reflect the total
+  meowMiles: number; // Quest and check-in miles
+  proposalsGmeow: number;
+  gamesGmeow: number;
+  referrals: string[];
 }
 
 export default function LeaderboardPage() {
@@ -23,7 +27,7 @@ export default function LeaderboardPage() {
   const entriesPerPage = 20;
   const userRowRef = useRef<HTMLTableRowElement | null>(null);
 
-  // Fetch all users from Firestore
+  // Fetch all users from Firestore and calculate total Meow Miles
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {
@@ -35,24 +39,40 @@ export default function LeaderboardPage() {
 
         querySnapshot.forEach((doc) => {
           const data = doc.data();
+          const referralCount = data.referrals?.length || 0;
+          const totalMeowMiles = Math.floor(
+            (Number(data.meowMiles) || 0) +
+            (Number(data.proposalsGmeow) || 0) +
+            (Number(data.gamesGmeow) || 0) +
+            (referralCount * 500)
+          );
+
           usersData.push({
             walletAddress: doc.id,
+            totalMeowMiles,
             meowMiles: Number(data.meowMiles) || 0,
+            proposalsGmeow: Number(data.proposalsGmeow) || 0,
+            gamesGmeow: Number(data.gamesGmeow) || 0,
+            referrals: data.referrals || [],
           });
         });
 
-        // Sort by meowMiles in descending order
-        usersData.sort((a, b) => b.meowMiles - a.meowMiles);
+        // Sort by totalMeowMiles in descending order
+        usersData.sort((a, b) => b.totalMeowMiles - a.totalMeowMiles);
         console.log('Leaderboard: Fetched and sorted users:', usersData);
 
         // If connected wallet is not in the list, add it with 0 points
         if (connectedWallet && !usersData.some(user => user.walletAddress.toLowerCase() === connectedWallet.toLowerCase())) {
           usersData.push({
             walletAddress: connectedWallet,
+            totalMeowMiles: 0,
             meowMiles: 0,
+            proposalsGmeow: 0,
+            gamesGmeow: 0,
+            referrals: [],
           });
           // Re-sort after adding the connected wallet
-          usersData.sort((a, b) => b.meowMiles - a.meowMiles);
+          usersData.sort((a, b) => b.totalMeowMiles - a.totalMeowMiles);
         }
 
         setUsers(usersData);
@@ -164,7 +184,7 @@ export default function LeaderboardPage() {
                     />
                   </div>
                   <p className="text-sm md:text-base text-gray-300 mt-2">{shortenAddress(users[1].walletAddress)}</p>
-                  <p className="text-lg md:text-xl font-bold text-cyan-400">{users[1].meowMiles}</p>
+                  <p className="text-lg md:text-xl font-bold text-cyan-400">{users[1].totalMeowMiles}</p>
                 </motion.div>
               )}
 
@@ -187,7 +207,7 @@ export default function LeaderboardPage() {
                     />
                   </div>
                   <p className="text-sm md:text-base text-gray-300 mt-2">{shortenAddress(users[0].walletAddress)}</p>
-                  <p className="text-xl md:text-2xl font-bold text-cyan-400">{users[0].meowMiles}</p>
+                  <p className="text-xl md:text-2xl font-bold text-cyan-400">{users[0].totalMeowMiles}</p>
                 </motion.div>
               )}
 
@@ -210,7 +230,7 @@ export default function LeaderboardPage() {
                     />
                   </div>
                   <p className="text-sm md:text-base text-gray-300 mt-2">{shortenAddress(users[2].walletAddress)}</p>
-                  <p className="text-lg md:text-xl font-bold text-cyan-400">{users[2].meowMiles}</p>
+                  <p className="text-lg md:text-xl font-bold text-cyan-400">{users[2].totalMeowMiles}</p>
                 </motion.div>
               )}
             </div>
@@ -230,7 +250,7 @@ export default function LeaderboardPage() {
                     <tr className="bg-gradient-to-r from-purple-900 to-cyan-900 text-white">
                       <th className="py-4 px-6 text-sm md:text-base font-semibold">Rank</th>
                       <th className="py-4 px-6 text-sm md:text-base font-semibold">Wallet Address</th>
-                      <th className="py-4 px-6 text-sm md:text-base font-semibold">Meow Miles</th>
+                      <th className="py-4 px-6 text-sm md:text-base font-semibold">Total Meow Miles</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -255,7 +275,7 @@ export default function LeaderboardPage() {
                           </span>
                         </td>
                         <td className="py-4 px-6 text-sm md:text-base text-cyan-400 font-medium">
-                          {connectedUser ? connectedUser.meowMiles : 0}
+                          {connectedUser ? connectedUser.totalMeowMiles : 0}
                         </td>
                       </motion.tr>
                     )}
@@ -280,7 +300,7 @@ export default function LeaderboardPage() {
                             {shortenAddress(user.walletAddress)}
                           </td>
                           <td className="py-4 px-6 text-sm md:text-base text-cyan-400 font-medium">
-                            {user.meowMiles}
+                            {user.totalMeowMiles}
                           </td>
                         </motion.tr>
                       );
