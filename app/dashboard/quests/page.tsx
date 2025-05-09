@@ -24,10 +24,10 @@ const INITIAL_QUESTS = [
     icon: '/quest/post.png', 
     taskUrl: 'https://twitter.com/intent/tweet?text=I%20Just%20started%20earning%20meow%20Miles%20on%20@catcentsio%20The%20degen%20playground%20built%20on%20@Monad_xyz.%20Quests,%20games,%20votes,%20and%20chaos.%20You%20in?%20https://www.catcents.io/%20#CatCents%20#Monad'
   },
-  { id: 'like_rt_1', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1914732794489790663' },
+ // { id: 'like_rt_1', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1914732794489790663' },
   { id: 'like_rt_2', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1912899580703940891?t=foyVa-E-zlfDZx4b-lo0IA&s=19' },
-  { id: 'like_rt_3', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1916909155111342482?t=G5xpvxgx0uXmffQtVCqpYg&s=19' },
-  { id: 'like_rt_4', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1916747840446927058?t=7iENoJ8EwPQgCdCTMcsMUA&s=19' },
+ // { id: 'like_rt_3', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1916909155111342482?t=G5xpvxgx0uXmffQtVCqpYg&s=19' },
+ // { id: 'like_rt_4', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1916747840446927058?t=7iENoJ8EwPQgCdCTMcsMUA&s=19' },
   { id: 'like_rt_5', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1919808963748757547' },
   { id: 'like_rt_6', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1920051353054830954' },
   { id: 'like_rt_7', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1920873598492746067' },
