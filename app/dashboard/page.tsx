@@ -5,8 +5,6 @@ import { db } from '@/lib/firebase'
 import {
   doc,
   getDoc,
-  setDoc,
-  increment,
   DocumentReference,
   DocumentSnapshot,
   FirestoreDataConverter,
