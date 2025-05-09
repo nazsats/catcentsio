@@ -208,10 +208,6 @@ export default function DashboardPage() {
         localStorage.setItem('userEmail', userData.email)
         console.log('Dashboard: Set userEmail from Firestore:', userData.email)
       }
-      // Initialize countdown if lastCheckIn exists
-      if (userData.lastCheckIn) {
-        startCountdown(userData.lastCheckIn)
-      }
       console.log('Dashboard: Updated season0Points:', userData.season0Points, 'email:', userData.email, 'referralsList:', userData.referralsList)
     }
     if (userDataError) {
@@ -271,7 +267,7 @@ export default function DashboardPage() {
     const oneDay = 24 * 60 * 60 * 1000
     if (lastCheckIn && now - lastCheckIn < oneDay) {
       console.log('Dashboard: Check-in not allowed yet:', { lastCheckIn, timeLeft: oneDay - (now - lastCheckIn) })
-      toast.error('Check-in not available yet.')
+      toast.error('You already checked in today. Try again tomorrow.')
       return
     }
     if (chainId !== monadTestnet.id) {
@@ -306,38 +302,52 @@ export default function DashboardPage() {
             {
               onSuccess: async (hash) => {
                 console.log('Dashboard: Transaction confirmed:', hash)
-                await runTransaction(db, async (transaction) => {
-                  const userRef = doc(db, 'users', account).withConverter(userDataConverter)
-                  const userDoc = await transaction.get(userRef)
-                  if (!userDoc.exists()) throw new Error('User document does not exist')
-                  transaction.update(userRef, {
-                    lastCheckIn: now,
-                    meowMiles: (userDoc.data().meowMiles || 0) + 10,
+                try {
+                  await runTransaction(db, async (transaction) => {
+                    const userRef = doc(db, 'users', account).withConverter(userDataConverter)
+                    const userDoc = await transaction.get(userRef)
+                    if (!userDoc.exists()) throw new Error('User document does not exist')
+                    // Double-check check-in eligibility in transaction
+                    const currentLastCheckIn = userDoc.data().lastCheckIn || 0
+                    if (currentLastCheckIn && now - currentLastCheckIn < oneDay) {
+                      throw new Error('Check-in already performed today')
+                    }
+                    transaction.update(userRef, {
+                      lastCheckIn: now,
+                      meowMiles: (userDoc.data().meowMiles || 0) + 10,
+                    })
                   })
-                })
 
-                setLastCheckIn(now)
-                startCountdown(now)
-                queryClient.invalidateQueries({ queryKey: ['userData', account] })
+                  // Only update state after Firestore success
+                  setLastCheckIn(now)
+                  startCountdown(now)
+                  queryClient.invalidateQueries({ queryKey: ['userData', account] })
 
-                toast.dismiss(pendingToast)
-                toast.success(
-                  <div>
-                    Check-in completed! You earned 10 MeowMiles.{' '}
-                    <a
-                      href={`https://testnet.monadscan.com/tx/${hash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline text-cyan-400 hover:text-cyan-300"
-                    >
-                      View on MonadScan
-                    </a>
-                  </div>,
-                  { duration: 5000 }
-                )
+                  toast.dismiss(pendingToast)
+                  toast.success(
+                    <div>
+                      Check-in completed! You earned 10 MeowMiles.{' '}
+                      <a
+                        href={`https://testnet.monadscan.com/tx/${hash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline text-cyan-400 hover:text-cyan-300"
+                      >
+                        View on MonadScan
+                      </a>
+                    </div>,
+                    { duration: 5000 }
+                  )
+                } catch (firestoreError: unknown) {
+                  console.error('Dashboard: Firestore update failed:', firestoreError)
+                  toast.dismiss(pendingToast)
+                  const errorMessage = firestoreError instanceof Error ? firestoreError.message : 'Unknown error'
+                  toast.error(`Check-in failed: ${errorMessage}`, { duration: 5000 })
+                  setCheckingIn(false) // Reset checkingIn on Firestore failure
+                }
               },
               onError: (err) => {
-                console.error('Dashboard: Check-in error:', err, JSON.stringify(err, null, 2))
+                console.error('Dashboard: Check-in transaction error:', err, JSON.stringify(err, null, 2))
                 toast.dismiss(pendingToast)
                 if (err.message.includes('Internal JSON-RPC error')) {
                   toast.error('Network error. Please try again later.', { duration: 5000 })
@@ -361,6 +371,7 @@ export default function DashboardPage() {
                 } else {
                   toast.error(`Failed to check-in: ${err.message}`, { duration: 5000 })
                 }
+                setCheckingIn(false) // Reset checkingIn on transaction failure
               },
             }
           ),
@@ -377,8 +388,7 @@ export default function DashboardPage() {
       toast.dismiss(pendingToast)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       toast.error(`Failed to check-in: ${errorMessage}`, { duration: 5000 })
-    } finally {
-      setCheckingIn(false)
+      setCheckingIn(false) // Reset checkingIn on general failure
     }
   }
 
@@ -415,6 +425,7 @@ export default function DashboardPage() {
       if (timeLeft <= 0) {
         setCountdown('00:00:00')
         setLastCheckIn(null)
+        setCheckingIn(false) // Ensure button is re-enabled
         return
       }
       const hours = Math.floor(timeLeft / (1000 * 60 * 60))
@@ -431,13 +442,20 @@ export default function DashboardPage() {
     return () => clearInterval(interval)
   }
 
-  // Cleanup countdown interval
+  // Initialize countdown from Firestore data
   useEffect(() => {
-    if (lastCheckIn) {
-      const cleanup = startCountdown(lastCheckIn)
-      return cleanup
+    if (userData?.lastCheckIn) {
+      const now = Date.now()
+      const oneDay = 24 * 60 * 60 * 1000
+      if (now - userData.lastCheckIn < oneDay) {
+        startCountdown(userData.lastCheckIn)
+      } else {
+        setLastCheckIn(null)
+        setCountdown('00:00:00')
+        setCheckingIn(false)
+      }
     }
-  }, [lastCheckIn])
+  }, [userData])
 
   const handleCopyAddress = () => {
     if (account) {
