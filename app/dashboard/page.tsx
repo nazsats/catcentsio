@@ -10,6 +10,7 @@ import {
   DocumentReference,
   DocumentSnapshot,
   FirestoreDataConverter,
+  runTransaction,
 } from 'firebase/firestore'
 import Profile from '@/components/Profile'
 import Badges from '@/components/Badges'
@@ -18,7 +19,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Loader from '@/components/Loader'
 import { useAccount, useDisconnect, useBalance, useSendTransaction, useChainId } from 'wagmi'
 import { monadTestnet } from '@reown/appkit/networks'
-import { useRouter, useSearchParams, usePathname } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createPublicClient, http } from 'viem'
 import pRetry from 'p-retry'
 
@@ -77,7 +78,6 @@ export default function DashboardPage() {
   const queryClient = useQueryClient()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const pathname = usePathname()
   const chainId = useChainId()
   const hasRedirected = useRef(false) // To prevent redirect loops
   const effectRunCount = useRef(0) // For debugging potential loops
@@ -115,6 +115,7 @@ export default function DashboardPage() {
     }
   }, [searchParams, account, queryClient, router])
 
+  // Log Season 0 Points and Email for debugging
   useEffect(() => {
     console.log('Season 0 Points Card:', { userEmail, season0Points })
   }, [userEmail, season0Points])
@@ -209,6 +210,10 @@ export default function DashboardPage() {
         localStorage.setItem('userEmail', userData.email)
         console.log('Dashboard: Set userEmail from Firestore:', userData.email)
       }
+      // Initialize countdown if lastCheckIn exists
+      if (userData.lastCheckIn) {
+        startCountdown(userData.lastCheckIn)
+      }
       console.log('Dashboard: Updated season0Points:', userData.season0Points, 'email:', userData.email, 'referralsList:', userData.referralsList)
     }
     if (userDataError) {
@@ -226,11 +231,12 @@ export default function DashboardPage() {
     }
   }, [balanceData])
 
-  // Invalidate queries when account changes
+  // Invalidate and refetch queries when account changes
   useEffect(() => {
     if (account) {
-      console.log('Dashboard: Invalidating userData query for account:', account)
+      console.log('Dashboard: Invalidating and refetching userData query for account:', account)
       queryClient.invalidateQueries({ queryKey: ['userData', account] })
+      queryClient.refetchQueries({ queryKey: ['userData', account] })
     }
   }, [account, queryClient])
 
@@ -253,11 +259,8 @@ export default function DashboardPage() {
       console.log('Dashboard useEffect: Redirecting to / (no account)')
       hasRedirected.current = true
       router.push('/')
-      return
     }
-
-    // Removed the redirect to /dashboard/quests
-  }, [account, loading, router, pathname])
+  }, [account, loading, router])
 
   const handleDailyCheckIn = async () => {
     console.log('Dashboard: Check-in initiated:', { account, checkingIn })
@@ -284,7 +287,7 @@ export default function DashboardPage() {
     try {
       const publicClient = createPublicClient({
         chain: monadTestnet,
-        transport: http(),
+        transport: http(monadTestnet.rpcUrls.default.http[0]),
       })
       const gasEstimate = await publicClient.estimateGas({
         account,
@@ -299,14 +302,21 @@ export default function DashboardPage() {
             {
               to: CHECK_IN_ADDRESS,
               value: BigInt(0),
-              gas: gasEstimate,
+              gas: BigInt(Math.floor(Number(gasEstimate) * 1.2)), // Add 20% buffer
               gasPrice,
             },
             {
               onSuccess: async (hash) => {
                 console.log('Dashboard: Transaction confirmed:', hash)
-                const userRef = doc(db, 'users', account).withConverter(userDataConverter)
-                await setDoc(userRef, { lastCheckIn: now, meowMiles: increment(10) }, { merge: true })
+                await runTransaction(db, async (transaction) => {
+                  const userRef = doc(db, 'users', account).withConverter(userDataConverter)
+                  const userDoc = await transaction.get(userRef)
+                  if (!userDoc.exists()) throw new Error('User document does not exist')
+                  transaction.update(userRef, {
+                    lastCheckIn: now,
+                    meowMiles: (userDoc.data().meowMiles || 0) + 10,
+                  })
+                })
 
                 setLastCheckIn(now)
                 startCountdown(now)
@@ -332,7 +342,7 @@ export default function DashboardPage() {
                 console.error('Dashboard: Check-in error:', err, JSON.stringify(err, null, 2))
                 toast.dismiss(pendingToast)
                 if (err.message.includes('Internal JSON-RPC error')) {
-                  toast.error('Reconnect your wallet or try again later.', { duration: 5000 })
+                  toast.error('Network error. Please try again later.', { duration: 5000 })
                 } else if (err.message.includes('user denied') || err.message.includes('User rejected')) {
                   toast.error('You rejected the transaction.', { duration: 5000 })
                 } else if (err.message.includes('insufficient funds')) {
@@ -423,6 +433,14 @@ export default function DashboardPage() {
     return () => clearInterval(interval)
   }
 
+  // Cleanup countdown interval
+  useEffect(() => {
+    if (lastCheckIn) {
+      const cleanup = startCountdown(lastCheckIn)
+      return cleanup
+    }
+  }, [lastCheckIn])
+
   const handleCopyAddress = () => {
     if (account) {
       navigator.clipboard.writeText(account)
@@ -432,7 +450,7 @@ export default function DashboardPage() {
 
   const handleCopyReferralLink = () => {
     if (account) {
-      const referralLink = `${window.location.origin}/?ref=${account}`
+      const referralLink = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://catcents.io'}/?ref=${account}`
       navigator.clipboard.writeText(referralLink)
       toast.success('Referral link copied!')
     }
@@ -457,7 +475,7 @@ export default function DashboardPage() {
     console.log('Dashboard: Rendering error state due to userDataError:', userDataError.message)
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-black to-purple-950 text-white">
-                <div className="text-center">
+        <div className="text-center">
           <h2 className="text-xl text-red-400">Failed to load dashboard</h2>
           <p className="text-gray-300">Error: {userDataError.message || 'Unknown error'}</p>
           <p className="text-gray-300">Please try refreshing the page or reconnecting your wallet.</p>
@@ -586,7 +604,7 @@ export default function DashboardPage() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 0 00-2-2h-8a2 0 00-2 2v8a2 0 002 2z"
+                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
                 />
               </svg>
               <span>Copy Referral Link</span>
@@ -616,7 +634,9 @@ export default function DashboardPage() {
                   </table>
                 </div>
               ) : (
-                <p className="text-sm text-gray-500 text-center py-4 bg-gray-900/50 rounded-lg">No referrals yet.</p>
+                <p className="text-sm text-gray-500 text-center py-4 bg-gray-900/50 rounded-lg">
+                  No referrals yet. Invite friends to earn more Meow Miles!
+                </p>
               )}
             </div>
           </div>
