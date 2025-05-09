@@ -3,14 +3,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { db } from '../../../lib/firebase'
-import { doc, setDoc, getDoc } from 'firebase/firestore'
+import { doc, setDoc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore'
 import Profile from '../../../components/Profile'
 import confetti from 'canvas-confetti'
 import { useAccount, useDisconnect } from 'wagmi'
 import toast, { Toaster } from 'react-hot-toast'
 import Image from 'next/image'
-
-const DEPLOYED_DOMAIN = 'https://catcents.io'
 
 const INITIAL_QUESTS = [
   { id: 'connect_twitter', title: 'Connect Twitter', description: 'Link your Twitter account', meowMiles: 30, completed: false, icon: '/quest/link.png' },
@@ -53,6 +51,14 @@ export default function QuestsPage() {
   // Track effect runs to detect loops
   const effectRunCount = useRef(0)
 
+  // Determine the base URL dynamically
+  const getBaseUrl = () => {
+    if (typeof window !== 'undefined') {
+      return window.location.origin; // e.g., http://localhost:3000 in dev, https://catcents.io in prod
+    }
+    return process.env.NEXT_PUBLIC_BASE_URL || 'https://catcents.io'; // Fallback for SSR
+  }
+
   const fetchUserData = async (address: string) => {
     setIsLoading(true)
     try {
@@ -73,7 +79,7 @@ export default function QuestsPage() {
         setMeowMiles(data.meowMiles || 0)
         setReferrals(data.referrals?.length || 0)
 
-        const newReferralLink = `${DEPLOYED_DOMAIN}/?ref=${address}`
+        const newReferralLink = `${getBaseUrl()}/?ref=${address}`
         setReferralLink(newReferralLink)
 
         if (data.referralLink && data.referralLink !== newReferralLink) {
@@ -82,10 +88,11 @@ export default function QuestsPage() {
         }
       } else {
         console.log('fetchUserData: Creating new user document for:', address)
-        const newReferralLink = `${DEPLOYED_DOMAIN}/?ref=${address}`
+        const newReferralLink = `${getBaseUrl()}/?ref=${address}`
         const referralCode = sessionStorage.getItem('referralCode')
         console.log('fetchUserData: Referral code retrieved:', referralCode)
 
+        // Create the new user document
         await setDoc(userRef, {
           walletAddress: address,
           meowMiles: 0,
@@ -95,6 +102,28 @@ export default function QuestsPage() {
           referralCode: referralCode || null,
         })
         console.log('fetchUserData: New user document created:', address)
+
+        // If there's a referral code, update the referrer's document
+        if (referralCode && referralCode !== address) { // Prevent self-referral
+          const referrerRef = doc(db, 'users', referralCode)
+          const referrerSnap = await getDoc(referrerRef)
+          if (referrerSnap.exists()) {
+            const referrerData = referrerSnap.data()
+            const currentReferrals = referrerData.referrals || []
+            // Only add the new user if they aren't already in the referrals array
+            if (!currentReferrals.includes(address)) {
+              await updateDoc(referrerRef, {
+                referrals: arrayUnion(address)
+              })
+              console.log('fetchUserData: Added new user to referrer\'s referrals:', { referrer: referralCode, newUser: address })
+              setReferrals(currentReferrals.length + 1) // Optimistically update the UI
+            } else {
+              console.log('fetchUserData: User already in referrer\'s referrals:', { referrer: referralCode, newUser: address })
+            }
+          } else {
+            console.warn('fetchUserData: Referrer document does not exist:', referralCode)
+          }
+        }
 
         setReferralLink(newReferralLink)
         sessionStorage.removeItem('referralCode')
@@ -159,7 +188,7 @@ export default function QuestsPage() {
     } finally {
       sessionStorage.removeItem('pendingQuest')
     }
-  }, [account, quests]) // Removed setQuests, setMeowMiles, setProcessingQuestId to prevent loop
+  }, [account, quests])
 
   const handleTaskStart = async (quest: typeof INITIAL_QUESTS[0]) => {
     if (quest.completed || processingQuestId) {
@@ -182,7 +211,7 @@ export default function QuestsPage() {
 
   const handleCopyReferralLink = () => {
     if (account) {
-      const referralLinkToCopy = `${DEPLOYED_DOMAIN}/?ref=${account}`
+      const referralLinkToCopy = `${getBaseUrl()}/?ref=${account}`
       navigator.clipboard.writeText(referralLinkToCopy)
       toast.success('Referral link copied!')
     }
@@ -263,7 +292,7 @@ export default function QuestsPage() {
         router.replace('/dashboard/quests')
       }
     }
-  }, [account, loading, pathname]) // Removed router, hasRedirected, completeQuest to stabilize
+  }, [account, loading, pathname])
 
   useEffect(() => {
     if (!account || loading) return
@@ -290,7 +319,7 @@ export default function QuestsPage() {
         sessionStorage.removeItem('pendingQuest')
       }
     }
-  }, [account, loading, completeQuest]) // Removed quests to prevent loop
+  }, [account, loading, completeQuest])
 
   if (loading || isLoading) {
     return (
@@ -416,7 +445,7 @@ export default function QuestsPage() {
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         strokeWidth={2}
-                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
                       />
                     </svg>
                     <span>Copy Link</span>

@@ -464,9 +464,16 @@ export default function DashboardPage() {
     }
   }
 
+  const getBaseUrl = () => {
+    if (typeof window !== 'undefined') {
+      return window.location.origin;
+    }
+    return process.env.NEXT_PUBLIC_BASE_URL || 'https://catcents.io';
+  }
+
   const handleCopyReferralLink = () => {
     if (account) {
-      const referralLink = `${process.env.NEXT_PUBLIC_BASE_URL || 'https://catcents.io'}/?ref=${account}`
+      const referralLink = `${getBaseUrl()}/?ref=${account}`
       navigator.clipboard.writeText(referralLink)
       toast.success('Referral link copied!')
     }
@@ -620,7 +627,7 @@ export default function DashboardPage() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 0 00-2-2h-8a2 0 00-2 2v8a2 2 0 002 2z"
                 />
               </svg>
               <span>Copy Referral Link</span>
