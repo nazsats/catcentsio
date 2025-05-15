@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -53,7 +53,7 @@ export default function Games() {
   const [gameScores, setGameScores] = useState<{ [key: string]: number }>({});
   const [claimCount, setClaimCount] = useState(0);
   const [lastClaimAmount, setLastClaimAmount] = useState<number | null>(null);
-  const [claimedThresholds, setClaimedThresholds] = useState<number[]>([]); // Store claimed thresholds
+  const [claimedThresholds, setClaimedThresholds] = useState<number[]>([]);
   const router = useRouter();
   const [hasRedirected, setHasRedirected] = useState(false);
 
@@ -67,6 +67,7 @@ export default function Games() {
         setGameScores({
           catsweeper: data.minesweeperBestScore || 0,
           catslots: data.catslotsBestScore || 0,
+          catwheel: data.catwheelBestScore || 0, // Added Cat Wheel score
         });
         setClaimCount(data.claimCount || 0);
         setLastClaimAmount(data.lastClaimAmount || null);
@@ -102,13 +103,13 @@ export default function Games() {
   const handleClaim = async () => {
     if (!address) return toast.error('Please connect your wallet');
 
-    const nextClaimThreshold = (claimCount + 1) * 1000; // Next threshold: 1000, 2000, 3000, ...
+    const nextClaimThreshold = (claimCount + 1) * 1000;
     if (gamesGmeow < nextClaimThreshold) {
       return toast.error(`You need at least ${nextClaimThreshold} Meow Miles to claim 0.025 MON!`, { duration: 4000 });
     }
 
-    const pointsToSend = nextClaimThreshold; // Send exact threshold points to contract
-    const monToClaim = 0.025; // Always claim 0.025 MON
+    const pointsToSend = nextClaimThreshold;
+    const monToClaim = 0.025;
     const pendingToast = toast.loading('Claiming 0.025 MON tokens...');
 
     try {
@@ -129,7 +130,7 @@ export default function Games() {
                 if (!userDoc.exists()) throw new Error('User not found');
                 const currentThresholds = userDoc.data().claimedThresholds || [];
                 transaction.update(userRef, {
-                  claimedThresholds: [...currentThresholds, nextClaimThreshold], // Store the claimed threshold
+                  claimedThresholds: [...currentThresholds, nextClaimThreshold],
                   claimCount: (userDoc.data().claimCount || 0) + 1,
                   lastClaimAmount: monToClaim,
                   updatedAt: new Date().toISOString(),
@@ -137,7 +138,7 @@ export default function Games() {
               });
               setClaimCount((prev) => prev + 1);
               setLastClaimAmount(monToClaim);
-              setClaimedThresholds((prev) => [...prev, nextClaimThreshold]); // Update local state
+              setClaimedThresholds((prev) => [...prev, nextClaimThreshold]);
               toast.dismiss(pendingToast);
               toast.success(
                 <div>
@@ -201,6 +202,12 @@ export default function Games() {
       title: 'Cat Slots',
       description: 'Spin the reels with cute cats to win Meow Miles!',
       image: '/games/catslots.png',
+    },
+    {
+      id: 'catwheel',
+      title: 'Cat Wheel',
+      description: 'Spin the wheel for a chance to win Meow Miles or special rewards!',
+      image: '/games/catwheel.png',
     },
     {
       id: 'race',
