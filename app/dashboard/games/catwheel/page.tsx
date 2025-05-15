@@ -608,7 +608,7 @@ export default function CatWheel() {
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <h1 className="text-2xl sm:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">
-            Cat Wheel
+            Wheel Of Meow Miles
           </h1>
           <Profile account={address} onCopyAddress={handleCopyAddress} onDisconnect={disconnect} />
         </div>
