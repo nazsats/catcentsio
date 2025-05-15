@@ -679,7 +679,7 @@ export default function CatWheel() {
             </div>
             <div className={styles.pointer}>
               <Image
-                src="/cats/cat1.png"
+                src="/cats/arrow.png"
                 alt="Wheel Pointer"
                 width={50}
                 height={50}
