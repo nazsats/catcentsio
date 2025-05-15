@@ -8,7 +8,7 @@ import { doc, getDoc, runTransaction, increment, FieldValue } from 'firebase/fir
 import { db } from '../../../../lib/firebase';
 import Profile from '../../../../components/Profile';
 import toast, { Toaster } from 'react-hot-toast';
-import { useAccount, useDisconnect, useWriteContract, useSwitchChain, useBalance } from 'wagmi';
+import { useAccount, useDisconnect, useWriteContract, useSwitchChain, useBalance, useReadContract } from 'wagmi';
 import { monadTestnet } from '@reown/appkit/networks';
 import Confetti from 'react-confetti';
 import styles from './CatWheel.module.css';
@@ -40,10 +40,9 @@ const SEGMENTS: Segment[] = [
 
 const INITIAL_BET = 0.01;
 const SPIN_DURATION = 5000;
-const REWARD_025_MON = BigInt(25_000_000_000_000_000); // 0.025 MON
-const REWARD_05_MON = BigInt(50_000_000_000_000_000);  // 0.05 MON
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CATWHEEL_CONTRACT_ADDRESS || '0x5798d359c65910458C2842A33B1fB03976c4ac17';
-const contractAbi = [
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CATWHEEL_CONTRACT_ADDRESS || '0x7444aBF8C80836972BebcF31AB3B536Cd72a835d';
+
+const catWheelAbi = [
   {
     type: 'function',
     name: 'placeBet',
@@ -53,20 +52,48 @@ const contractAbi = [
   },
   {
     type: 'function',
+    name: 'recordWin',
+    inputs: [
+      { name: 'player', type: 'address' },
+      { name: 'segmentId', type: 'uint256' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     name: 'claimReward',
+    inputs: [],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'addFunds',
+    inputs: [],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'withdrawFunds',
     inputs: [{ name: 'amount', type: 'uint256' }],
     outputs: [],
     stateMutability: 'nonpayable',
   },
   {
     type: 'function',
-    name: 'setPendingReward',
-    inputs: [
-      { name: 'player', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
+    name: 'getContractBalance',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'pendingRewards',
+    inputs: [{ name: 'player', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
   },
   {
     type: 'event',
@@ -79,9 +106,37 @@ const contractAbi = [
   },
   {
     type: 'event',
+    name: 'RewardWon',
+    inputs: [
+      { name: 'player', type: 'address', indexed: true },
+      { name: 'amount', type: 'uint256', indexed: false },
+      { name: 'segmentId', type: 'uint256', indexed: false },
+      { name: 'timestamp', type: 'uint256', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
     name: 'RewardClaimed',
     inputs: [
       { name: 'player', type: 'address', indexed: true },
+      { name: 'amount', type: 'uint256', indexed: false },
+      { name: 'timestamp', type: 'uint256', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'FundsAdded',
+    inputs: [
+      { name: 'sender', type: 'address', indexed: true },
+      { name: 'amount', type: 'uint256', indexed: false },
+      { name: 'timestamp', type: 'uint256', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'FundsWithdrawn',
+    inputs: [
+      { name: 'admin', type: 'address', indexed: true },
       { name: 'amount', type: 'uint256', indexed: false },
       { name: 'timestamp', type: 'uint256', indexed: false },
     ],
@@ -117,15 +172,27 @@ export default function CatWheel() {
   const wheelRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    if (showModal) {
-      console.log('Rendering Modal:', { showModal, resultSegment, monReward, points });
-    }
-  }, [showModal, resultSegment, monReward, points]);
+  // Read contract balance and pending rewards
+  const { data: contractBalance } = useReadContract({
+    address: CONTRACT_ADDRESS as `0x${string}`,
+    abi: catWheelAbi,
+    functionName: 'getContractBalance',
+  });
+  const { data: pendingReward } = useReadContract({
+    address: CONTRACT_ADDRESS as `0x${string}`,
+    abi: catWheelAbi,
+    functionName: 'pendingRewards',
+    args: [address],
+  });
 
   useEffect(() => {
     if (isConnecting) return;
     if (!address) return router.push('/');
+    console.log('Contract state:', {
+      contractBalance: contractBalance ? Number(contractBalance) / 1e18 : 'N/A',
+      pendingReward: pendingReward ? Number(pendingReward) / 1e18 : 'N/A',
+      userAddress: address,
+    });
     (async () => {
       try {
         const userRef = doc(db, 'users', address);
@@ -136,7 +203,13 @@ export default function CatWheel() {
         toast.error('Failed to load game stats.');
       }
     })();
-  }, [address, isConnecting, router]);
+  }, [address, isConnecting, router, contractBalance, pendingReward]);
+
+  useEffect(() => {
+    if (showModal) {
+      console.log('Rendering Modal:', { showModal, resultSegment, monReward, points });
+    }
+  }, [showModal, resultSegment, monReward, points]);
 
   useEffect(() => {
     if (showConfetti) {
@@ -145,15 +218,22 @@ export default function CatWheel() {
     }
   }, [showConfetti]);
 
-  const playSound = (type: 'spin' | 'win') =>
-    new Audio(`/catwheel-sound/${type}.mp3`).play().catch((err) => console.error('Audio failed:', err));
+  const playSound = (type: 'spin' | 'win') => {
+    try {
+      const audio = new Audio(`/catwheel-sound/${type}.mp3`);
+      audio.play().catch((err) => {
+        console.warn(`Audio failed for ${type}.mp3:`, err);
+      });
+    } catch (err) {
+      console.warn(`Failed to initialize audio for ${type}.mp3:`, err);
+    }
+  };
 
   const cashOut = useCallback(
     async (segment: Segment) => {
       if (!address) return;
       const pendingToast = toast.loading('Processing reward...');
       try {
-        // Firestore update
         await runTransaction(db, async (transaction) => {
           const userRef = doc(db, 'users', address);
           const userDoc = await transaction.get(userRef);
@@ -164,7 +244,6 @@ export default function CatWheel() {
             gamesGmeow: increment(segment.points || 0),
             updatedAt: new Date().toISOString(),
           };
-
           if (segment.role) {
             const existingRoles = data.discordRoles || [];
             if (!existingRoles.includes(segment.role)) {
@@ -176,41 +255,8 @@ export default function CatWheel() {
             updateData.pendingMonReward = segment.monReward;
             updateData.pendingMonRewardId = segment.id;
           }
-
           transaction.set(userRef, updateData, { merge: true });
         });
-
-        // Contract update (setPendingReward)
-        if (segment.monReward) {
-          const rewardWei = segment.monReward === 0.025 ? REWARD_025_MON : segment.monReward === 0.05 ? REWARD_05_MON : BigInt(0);
-          if (rewardWei === BigInt(0)) {
-            throw new Error(`Invalid reward amount: ${segment.monReward}`);
-          }
-          try {
-            console.log('Calling setPendingReward with:', { player: address, amount: rewardWei.toString() });
-            await writeContract(
-              {
-                address: CONTRACT_ADDRESS as `0x${string}`,
-                abi: contractAbi,
-                functionName: 'setPendingReward',
-                args: [address, rewardWei],
-              },
-              {
-                onSuccess: (txHash) => {
-                  console.log('Set pending reward success:', { monReward: segment.monReward, txHash, address });
-                },
-                onError: (error) => {
-                  console.error('SetPendingReward failed:', error);
-                  throw new Error(`Failed to set pending reward: ${error.message}`);
-                },
-              }
-            );
-          } catch (error) {
-            console.error('SetPendingReward error:', error);
-            toast.error(`Failed to sync ${segment.monReward} MON reward with contract.`);
-            // Continue to show modal
-          }
-        }
 
         setBestScore(segment.points || 0);
         setMonReward(segment.monReward || 0);
@@ -225,52 +271,50 @@ export default function CatWheel() {
         } else {
           toast.success('Better luck next time!');
         }
+        if ((segment.points || 0) > 0 || segment.monReward || segment.role) {
+          setShowConfetti(true);
+        }
       } catch (error) {
         console.error('CashOut error:', error);
         toast.dismiss(pendingToast);
-        toast.error('Failed to process reward.');
+        const message = error instanceof Error ? error.message : 'Failed to process reward.';
+        toast.error(message, { duration: 6000 });
       }
     },
-    [address, writeContract]
+    [address]
   );
 
-  const claimReward = useCallback(
-    async (amount: number) => {
-      if (!address) return toast.error('Please connect your wallet');
-      const pendingToast = toast.loading(`Claiming ${amount} MON...`);
-      try {
-        await switchChain({ chainId: monadTestnet.id });
-        const rewardWei = amount === 0.025 ? REWARD_025_MON : amount === 0.05 ? REWARD_05_MON : BigInt(0);
-        if (rewardWei === BigInt(0)) {
-          throw new Error(`Invalid claim amount: ${amount}`);
-        }
-        console.log('Calling claimReward with:', { amount, rewardWei: rewardWei.toString(), address });
-        await writeContract(
+  const placeBet = async (): Promise<boolean> => {
+    if (!address) {
+      toast.error('Please connect your wallet');
+      return false;
+    }
+    const pendingToast = toast.loading('Placing bet...');
+    try {
+      await switchChain({ chainId: monadTestnet.id });
+      if (!balanceData || balanceData.value < BigInt(INITIAL_BET * 1e18)) {
+        throw new Error('Insufficient MON balance.');
+      }
+      console.log('Calling placeBet:', {
+        value: (INITIAL_BET * 1e18).toString(),
+        address,
+      });
+      return new Promise((resolve) => {
+        writeContract(
           {
             address: CONTRACT_ADDRESS as `0x${string}`,
-            abi: contractAbi,
-            functionName: 'claimReward',
-            args: [rewardWei],
+            abi: catWheelAbi,
+            functionName: 'placeBet',
+            value: BigInt(INITIAL_BET * 1e18),
+            gas: BigInt(100_000),
           },
           {
-            onSuccess: async (txHash) => {
-              console.log('Claim reward success:', { amount, txHash, address });
-              await runTransaction(db, async (transaction) => {
-                const userRef = doc(db, 'users', address);
-                transaction.set(
-                  userRef,
-                  {
-                    pendingMonReward: 0,
-                    pendingMonRewardId: null,
-                    updatedAt: new Date().toISOString(),
-                  },
-                  { merge: true }
-                );
-              });
+            onSuccess: (txHash) => {
+              console.log('Place bet success:', { txHash, address });
               toast.dismiss(pendingToast);
               toast.success(
                 <div>
-                  Reward claimed: {amount} MON!{' '}
+                  Bet placed!{' '}
                   <a
                     href={`https://testnet.monadexplorer.com/tx/${txHash}`}
                     target="_blank"
@@ -280,117 +324,41 @@ export default function CatWheel() {
                     View on MonadExplorer
                   </a>
                 </div>,
-                { duration: 4000 }
+                { duration: 6000 }
               );
-              setMonReward(0);
-              setShowModal(false);
+              setGameStarted(true);
+              resolve(true);
             },
-            onError: (error) => {
-              console.error('ClaimReward failed:', error);
-              throw error;
+            onError: (error: Error) => {
+              console.error('PlaceBet error:', error);
+              let message = error.message || 'Unknown error';
+              if (typeof error.cause === 'object' && error.cause !== null && 'reason' in error.cause) {
+                message = (error.cause as { reason: string }).reason;
+              }
+              toast.dismiss(pendingToast);
+              if (message.includes('insufficient funds') || message.includes('Insufficient MON balance')) {
+                toast.error(
+                  <div>
+                    Insufficient MON balance.{' '}
+                    <a
+                      href="https://faucet.monad.xyz/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline text-cyan-400"
+                    >
+                      Claim MON tokens
+                    </a>
+                  </div>,
+                  { duration: 6000 }
+                );
+              } else {
+                toast.error(`Bet failed: ${message}`, { duration: 6000 });
+              }
+              resolve(false);
             },
           }
         );
-      } catch (error) {
-        console.error('Claim error:', error);
-        toast.dismiss(pendingToast);
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        toast.error(`Claim failed: ${message}`, { duration: 4000 });
-      }
-    },
-    [address, switchChain, writeContract]
-  );
-
-  const spinWheel = useCallback(() => {
-    if (gameStatus === 'spinning') return;
-    setGameStatus('spinning');
-    setShowConfetti(false);
-    setPoints(0);
-    setMonReward(0);
-    setResultSegment(null);
-    playSound('spin');
-
-    const extraSpins = 1080 + Math.random() * 360;
-    const finalRotation = extraSpins;
-
-    setRotation(finalRotation);
-
-    setTimeout(() => {
-      try {
-        console.log('Spin completed, setting showModal to true');
-        const normalizedRotation = finalRotation % 360;
-        const segmentAngle = 360 / SEGMENTS.length;
-        const adjustedAngle = (360 - normalizedRotation) % 360;
-        const segmentIndex = Math.floor(adjustedAngle / segmentAngle) % SEGMENTS.length;
-        const selectedSegment = SEGMENTS[segmentIndex];
-        // For testing: Force 0.05 MON win
-        //const selectedSegment = SEGMENTS.find(s => s.id === '10') || SEGMENTS[0];
-
-        console.log(
-          `SpinWheel: Final rotation: ${finalRotation.toFixed(2)}°, Normalized: ${normalizedRotation.toFixed(
-            2
-          )}°, Adjusted: ${adjustedAngle.toFixed(2)}°, Segment index: ${segmentIndex}, Reward: ${
-            selectedSegment.label
-          }, monReward: ${selectedSegment.monReward || 0}, role: ${selectedSegment.role || 'none'}`
-        );
-
-        setResultSegment(selectedSegment);
-        setPoints(selectedSegment.points || 0);
-        setGameStatus((selectedSegment.points || 0) > 0 || selectedSegment.monReward || selectedSegment.role ? 'won' : 'lost');
-        if ((selectedSegment.points || 0) > 0 || selectedSegment.monReward || selectedSegment.role) {
-          setShowConfetti(true);
-          playSound('win');
-          cashOut(selectedSegment);
-        }
-        setShowModal(true);
-      } catch (error) {
-        console.error('Error in spinWheel callback:', error);
-        toast.error('Failed to process spin result.');
-      }
-    }, SPIN_DURATION);
-  }, [gameStatus, cashOut]);
-
-  const placeBet = async () => {
-    if (!address) return toast.error('Please connect your wallet');
-    const pendingToast = toast.loading('Placing bet...');
-    try {
-      await switchChain({ chainId: monadTestnet.id });
-      if (!balanceData || balanceData.value < BigInt(INITIAL_BET * 1e18))
-        throw new Error('Insufficient MON balance.');
-      console.log('Calling placeBet with:', { value: (INITIAL_BET * 1e18).toString(), address });
-      await writeContract(
-        {
-          address: CONTRACT_ADDRESS as `0x${string}`,
-          abi: contractAbi,
-          functionName: 'placeBet',
-          value: BigInt(INITIAL_BET * 1e18),
-        },
-        {
-          onSuccess: async (txHash) => {
-            console.log('Place bet success:', { txHash, address });
-            toast.dismiss(pendingToast);
-            toast.success(
-              <div>
-                Bet placed!{' '}
-                <a
-                  href={`https://testnet.monadexplorer.com/tx/${txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline text-cyan-400"
-                >
-                  View on MonadExplorer
-                </a>
-              </div>,
-              { duration: 4000 }
-            );
-            setGameStarted(true);
-            spinWheel();
-          },
-          onError: (error) => {
-            throw error;
-          },
-        }
-      );
+      });
     } catch (error) {
       console.error('PlaceBet error:', error);
       toast.dismiss(pendingToast);
@@ -408,15 +376,234 @@ export default function CatWheel() {
               Claim MON tokens
             </a>
           </div>,
-          { duration: 4000 }
+          { duration: 6000 }
         );
-      } else if (message.includes('revert')) {
-        toast.error('Bet failed: Transaction reverted.', { duration: 4000 });
       } else {
-        toast.error(`Bet failed: ${message}`, { duration: 4000 });
+        toast.error(`Bet failed: ${message}`, { duration: 6000 });
       }
+      return false;
     }
   };
+
+  const recordWin = async (segmentId: number) => {
+    if (!address) {
+      toast.error('Please connect your wallet');
+      return;
+    }
+    const pendingToast = toast.loading('Recording win...');
+    try {
+      await switchChain({ chainId: monadTestnet.id });
+      console.log('Calling recordWin:', { segmentId, address });
+      await writeContract(
+        {
+          address: CONTRACT_ADDRESS as `0x${string}`,
+          abi: catWheelAbi,
+          functionName: 'recordWin',
+          args: [address, BigInt(segmentId)],
+          gas: BigInt(150_000),
+        },
+        {
+          onSuccess: async (txHash) => {
+            console.log('Record win success:', { txHash, address, segmentId });
+            toast.dismiss(pendingToast);
+            toast.success(
+              <div>
+                Win recorded!{' '}
+                <a
+                  href={`https://testnet.monadexplorer.com/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-cyan-400"
+                >
+                  View on MonadExplorer
+                </a>
+              </div>,
+              { duration: 6000 }
+            );
+          },
+          onError: (error: Error) => {
+            console.error('RecordWin error:', error);
+            let message = error.message || 'Unknown error';
+if (typeof error.cause === 'object' && error.cause !== null && 'reason' in error.cause) {
+  message = (error.cause as { reason: string }).reason;
+}
+
+            if (message.includes('Claim existing reward first')) {
+              message = 'Please claim your existing MON reward before recording a new win.';
+            }
+            toast.dismiss(pendingToast);
+            toast.error(`Failed to record win: ${message}`, { duration: 6000 });
+          },
+        }
+      );
+    } catch (error) {
+      console.error('RecordWin error:', error);
+      toast.dismiss(pendingToast);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to record win: ${message}`, { duration: 6000 });
+    }
+  };
+
+  const claimReward = useCallback(
+    async () => {
+      if (!address) {
+        toast.error('Please connect your wallet');
+        return;
+      }
+      const pendingToast = toast.loading('Claiming reward...');
+      try {
+        await switchChain({ chainId: monadTestnet.id });
+        if (!pendingReward || pendingReward === BigInt(0)) {
+          throw new Error('No pending reward to claim');
+        }
+        if (contractBalance && contractBalance < pendingReward) {
+          throw new Error(`Contract balance too low: ${Number(contractBalance) / 1e18} MON available`);
+        }
+        console.log('Calling claimReward:', {
+          address,
+          pendingReward: Number(pendingReward) / 1e18,
+        });
+        await writeContract(
+          {
+            address: CONTRACT_ADDRESS as `0x${string}`,
+            abi: catWheelAbi,
+            functionName: 'claimReward',
+            gas: BigInt(150_000),
+          },
+          {
+            onSuccess: async (txHash) => {
+              console.log('Claim reward success:', { txHash, address });
+              await runTransaction(db, async (transaction) => {
+                const userRef = doc(db, 'users', address);
+                transaction.set(
+                  userRef,
+                  {
+                    pendingMonReward: 0,
+                    pendingMonRewardId: null,
+                    updatedAt: new Date().toISOString(),
+                  },
+                  { merge: true }
+                );
+              });
+              toast.dismiss(pendingToast);
+              toast.success(
+                <div>
+                  Reward claimed: {Number(pendingReward) / 1e18} MON!{' '}
+                  <a
+                    href={`https://testnet.monadexplorer.com/tx/${txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-cyan-400"
+                  >
+                    View on MonadExplorer
+                  </a>
+                </div>,
+                { duration: 6000 }
+              );
+              setMonReward(0);
+              setShowModal(false);
+              setGameStarted(false);
+            },
+            onError: (error: Error) => {
+              console.error('ClaimReward failed:', error);
+              let message = error.message || 'Unknown error';
+              if (typeof error.cause === 'object' && error.cause !== null && 'reason' in error.cause) {
+
+                message = (error.cause as { reason: string }).reason;
+              }
+              toast.dismiss(pendingToast);
+              toast.error(`Claim failed: ${message}`, { duration: 6000 });
+            },
+          }
+        );
+      } catch (error) {
+        console.error('Claim error:', error);
+        toast.dismiss(pendingToast);
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        toast.error(`Claim failed: ${message}`, { duration: 6000 });
+      }
+    },
+    [address, switchChain, writeContract, pendingReward, contractBalance]
+  );
+
+  const spinWheel = useCallback(async () => {
+    if (gameStatus === 'spinning') {
+      console.log('Spin blocked: Already spinning');
+      return;
+    }
+    console.log('Starting spinWheel:', { gameStatus, gameStarted });
+    const betSuccess = await placeBet();
+    if (!betSuccess) {
+      console.log('Spin aborted: placeBet failed');
+      return;
+    }
+
+    // Spin logic after bet confirmation
+    console.log('Bet confirmed, starting spin animation');
+    setGameStatus('spinning');
+    setShowConfetti(false);
+    setPoints(0);
+    setMonReward(0);
+    setResultSegment(null);
+    playSound('spin');
+
+    const extraSpins = 1080 + Math.random() * 360;
+    const finalRotation = extraSpins;
+
+    console.log('Setting rotation:', { finalRotation });
+    setRotation(finalRotation);
+
+    setTimeout(() => {
+      try {
+        console.log('Spin completed, processing result');
+        const normalizedRotation = finalRotation % 360;
+        const segmentAngle = 360 / SEGMENTS.length;
+        const adjustedAngle = (360 - normalizedRotation) % 360;
+        const segmentIndex = Math.floor(adjustedAngle / segmentAngle) % SEGMENTS.length;
+        const selectedSegment = SEGMENTS[segmentIndex];
+
+        console.log('SpinWheel result:', {
+          finalRotation: finalRotation.toFixed(2),
+          normalizedRotation: normalizedRotation.toFixed(2),
+          adjustedAngle: adjustedAngle.toFixed(2),
+          segmentIndex,
+          reward: selectedSegment.label,
+          monReward: selectedSegment.monReward || 0,
+          role: selectedSegment.role || 'none',
+        });
+
+        setResultSegment(selectedSegment);
+        setPoints(selectedSegment.points || 0);
+        setGameStatus((selectedSegment.points || 0) > 0 || selectedSegment.monReward || selectedSegment.role ? 'won' : 'lost');
+        if ((selectedSegment.points || 0) > 0 || selectedSegment.monReward || selectedSegment.role) {
+          setShowConfetti(true);
+          playSound('win');
+          cashOut(selectedSegment);
+        }
+        setShowModal(true);
+
+        // Record win for MON rewards
+        if (selectedSegment.monReward) {
+         if (typeof pendingReward === 'bigint' && pendingReward > BigInt(0)) {
+
+
+            console.log('Cannot record new reward:', {
+              pendingReward: Number(pendingReward) / 1e18,
+            });
+            toast.error('Claim your existing MON reward before winning another.', { duration: 6000 });
+          } else {
+            setMonReward(selectedSegment.monReward);
+            recordWin(Number(selectedSegment.id));
+          }
+        } else {
+          setGameStarted(false); // Allow new spin for non-MON wins
+        }
+      } catch (error) {
+        console.error('Error in spinWheel callback:', error);
+        toast.error('Failed to process spin result.', { duration: 6000 });
+      }
+    }, SPIN_DURATION);
+  }, [gameStatus, cashOut, gameStarted, pendingReward, placeBet, recordWin]);
 
   const handleNewGame = useCallback(() => {
     setGameStarted(false);
@@ -492,15 +679,19 @@ export default function CatWheel() {
             </p>
           </div>
           <div className="mt-6 flex justify-center gap-4">
-            {monReward > 0 ? (
+            {monReward > 0 || (typeof pendingReward === 'bigint' && pendingReward > BigInt(0)) ? (
               <motion.button
-                className="px-6 py-3 rounded-lg text-base font-semibold text-white bg-gradient-to-r from-green-600 to-cyan-500 hover:from-green-500 hover:to-cyan-400 shadow-[0_0_15px_rgba(34,197,94,0.5)]"
-                onClick={() => claimReward(monReward)}
+                className={`px-6 py-3 rounded-lg text-base font-semibold text-white ${
+                  isPending || typeof pendingReward !== 'bigint' || pendingReward === BigInt(0)
+                    ? 'bg-gray-600 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-green-600 to-cyan-500 hover:from-green-500 hover:to-cyan-400 shadow-[0_0_15px_rgba(34,197,94,0.5)]'
+                }`}
+                onClick={claimReward}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                disabled={isPending}
+                disabled={isPending || !pendingReward || pendingReward === BigInt(0)}
               >
-                {isPending ? 'Claiming...' : `Claim ${monReward} MON`}
+                {isPending ? 'Claiming...' : `Claim ${Number(pendingReward) / 1e18} MON`}
               </motion.button>
             ) : (
               <motion.button
@@ -590,7 +781,7 @@ export default function CatWheel() {
                 borderLeft: '4px solid #2196f3',
               },
             },
-            duration: 4000,
+            duration: 6000,
           }}
         />
 
@@ -693,7 +884,7 @@ export default function CatWheel() {
                 </div>
               ))}
             </div>
-            <div className={styles.pointer}>
+            <div className="absolute top-[-20px] left-1/2 transform -translate-x-1/2 z-10">
               <Image
                 src="/games/icons/arrow.png"
                 alt="Wheel Pointer"
@@ -708,7 +899,7 @@ export default function CatWheel() {
         <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-4 mt-6">
           {!gameStarted && (
             <motion.button
-              onClick={placeBet}
+              onClick={spinWheel}
               disabled={isPending || !address || gameStatus === 'spinning'}
               className={`px-4 py-2 sm:px-6 sm:py-3 rounded-lg text-sm sm:text-base font-semibold text-white ${
                 isPending || !address || gameStatus === 'spinning'
