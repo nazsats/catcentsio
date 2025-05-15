@@ -667,19 +667,19 @@ export default function CatWheel() {
                     transform: `rotate(${index * segmentAngle + segmentAngle / 1.2}deg) translate(0, -${wheelSize * 0.0000005}px)`,
                   }}
                 >
-                  <Image
-                    src={segment.icon}
-                    alt={segment.label}
-                    width={wheelSize >= 450 ? 32 : 24}
-                    height={wheelSize >= 450 ? 32 : 24}
-                    className={styles.segmentIcon}
-                  />
+              <Image
+  src={segment.icon}
+  alt={segment.label}
+  width={100} // Match source image size
+  height={100}
+  className={styles.segmentIcon}
+/>
                 </div>
               ))}
             </div>
             <div className={styles.pointer}>
               <Image
-                src="/cats/arrow.png"
+                src="/games/icons/arrow.png"
                 alt="Wheel Pointer"
                 width={50}
                 height={50}
