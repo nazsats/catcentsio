@@ -146,7 +146,7 @@ export default function CatWheel() {
   }, [showConfetti]);
 
   const playSound = (type: 'spin' | 'win') =>
-    new Audio(`/sounds/${type}.mp3`).play().catch((err) => console.error('Audio failed:', err));
+    new Audio(`/catwheel-sound/${type}.mp3`).play().catch((err) => console.error('Audio failed:', err));
 
   const cashOut = useCallback(
     async (segment: Segment) => {
