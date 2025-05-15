@@ -26,16 +26,16 @@ interface Segment {
 const SEGMENTS: Segment[] = [
   { id: '0', label: 'Try Again', points: 0, color: '#4B0082', icon: '/games/icons/try-again.png' },
   { id: '1', label: 'Test Catlist Role', role: 'test_catlist', color: '#FF69B4', icon: '/games/icons/test-catlist.png' },
-  { id: '2', label: '10 MM', points: 10, color: '#00CED1', icon: '/games/icons/10-mm.png' },
-  { id: '3', label: '200 MM', points: 200, color: '#FFD700', icon: '/games/icons/200-mm.png' },
+  { id: '2', label: '10 Meow Miles', points: 10, color: '#00CED1', icon: '/games/icons/10-mm.png' },
+  { id: '3', label: '200 Meow Miles', points: 200, color: '#FFD700', icon: '/games/icons/200-mm.png' },
   { id: '4', label: '0.025 MON', monReward: 0.025, color: '#FF4500', icon: '/games/icons/025-mon.png' },
-  { id: '5', label: '50 MM', points: 50, color: '#FF69B4', icon: '/games/icons/50-mm.png' },
-  { id: '6', label: '100 MM', points: 100, color: '#00CED1', icon: '/games/icons/100-mm.png' },
+  { id: '5', label: '50 Meow Miles', points: 50, color: '#FF69B4', icon: '/games/icons/50-mm.png' },
+  { id: '6', label: '100 Meow  Miles', points: 100, color: '#00CED1', icon: '/games/icons/100-mm.png' },
   { id: '7', label: 'Try Again', points: 0, color: '#4B0082', icon: '/games/icons/try-again.png' },
-  { id: '8', label: '150 MM', points: 150, color: '#9932CC', icon: '/games/icons/150-mm.png' },
-  { id: '9', label: '300 MM', points: 300, color: '#00FA9A', icon: '/games/icons/300-mm.png' },
+  { id: '8', label: '150 Meow Miles', points: 150, color: '#9932CC', icon: '/games/icons/150-mm.png' },
+  { id: '9', label: '300 Meow Miles', points: 300, color: '#00FA9A', icon: '/games/icons/300-mm.png' },
   { id: '10', label: '0.05 MON', monReward: 0.05, color: '#DC143C', icon: '/games/icons/05-mon.png' },
-  { id: '11', label: '250 MM', points: 250, color: '#1E90FF', icon: '/games/icons/250-mm.png' },
+  { id: '11', label: '250 Meow Miles', points: 250, color: '#1E90FF', icon: '/games/icons/250-mm.png' },
 ];
 
 const INITIAL_BET = 0.01;
@@ -592,7 +592,7 @@ export default function CatWheel() {
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <h1 className="text-2xl sm:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">
-            Cat Wheel
+            Wheel Of Meow Miles
           </h1>
           <Profile account={address} onCopyAddress={handleCopyAddress} onDisconnect={disconnect} />
         </div>
