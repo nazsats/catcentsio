@@ -32,6 +32,7 @@ const INITIAL_QUESTS = [
   { id: 'like_rt_6', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1920051353054830954' },
   { id: 'like_rt_7', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1920873598492746067' },
    { id: 'like_rt_8', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1923066482558370182' },
+     { id: 'like_rt_9', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1923225205037498407' },
   { id: 'check_testnet_guide', title: 'Check Testnet Guide', description: 'Read the Catcents Testnet Guide', meowMiles: 30, completed: false, icon: '/quest/guide.png', taskUrl: 'https://medium.com/@catcentsio/catcents-how-to-testnet-48de3fa6cca2' },
   { id: 'join_catcents_server', title: 'Join Catcents Server', description: 'Join our Discord server', meowMiles: 30, completed: false, icon: '/quest/server.png', taskUrl: 'https://discord.gg/TXPbt7ztMC' },
   { id: 'join_telegram', title: 'Join Telegram', description: 'Join our Telegram channel', meowMiles: 30, completed: false, icon: '/quest/telegram.png', taskUrl: 'https://t.me/catcentsio' },
