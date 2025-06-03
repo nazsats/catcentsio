@@ -66,7 +66,7 @@ export default function Sidebar({ onDisconnect }: SidebarProps) {
               />
               <span className="text-base">Quests</span>
             </Link>
-            <Link href="/dashboard/proposals" className={getLinkClass('/dashboard/proposals')}>
+            <Link href="https://portal.catcents.io/" className={getLinkClass('https://portal.catcents.io/')}>
               <Image
                 src="/sidebar/proposals.png"
                 alt="Proposals Icon"
