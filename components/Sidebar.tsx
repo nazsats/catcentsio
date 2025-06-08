@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 
@@ -10,10 +10,15 @@ interface SidebarProps {
 
 export default function Sidebar({ onDisconnect }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const pathname = usePathname(); // Get current route
+  const pathname = usePathname();
 
-  // Define active link styles
-  const getLinkClass = (href: string, disabled: boolean = false) =>
+  // Lock body scroll when sidebar is open on mobile
+  useEffect(() => {
+    document.body.classList.toggle('overflow-hidden', isOpen);
+    return () => document.body.classList.remove('overflow-hidden');
+  }, [isOpen]);
+
+  const getLinkClass = (href: string, disabled = false) =>
     `flex items-center space-x-3 transition-colors ${
       disabled
         ? 'text-gray-500 cursor-not-allowed'
@@ -24,22 +29,28 @@ export default function Sidebar({ onDisconnect }: SidebarProps) {
 
   return (
     <>
-      {/* Toggle Button - Attached to Sidebar */}
-      <button
-        className={`md:hidden fixed top-1/2 z-20 bg-purple-700 text-white p-3 rounded-r-lg shadow-lg transition-all duration-200 ease-in-out ${
-          isOpen ? 'left-64' : 'left-0'
-        } transform -translate-y-1/2`}
-        onClick={() => setIsOpen(!isOpen)}
-        aria-label="Toggle Menu"
-      >
-        <span className="text-xl font-bold">{isOpen ? '>' : '<'}</span>
-      </button>
+      {/* Hamburger Button: only when closed */}
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          aria-label="Open menu"
+          className="fixed top-20 left-4 z-30 p-2 bg-purple-700 rounded-md md:hidden"
+        >
+          <div className="space-y-1.5">
+            <span className="block w-6 h-0.5 bg-white"></span>
+            <span className="block w-6 h-0.5 bg-white"></span>
+            <span className="block w-6 h-0.5 bg-white"></span>
+          </div>
+        </button>
+      )}
 
-      {/* Sidebar */}
+      {/* Sidebar with close button inside */}
       <aside
-        className={`fixed md:static inset-y-0 left-0 w-64 bg-black/90 p-6 flex flex-col justify-between border-r border-purple-900 shadow-lg transition-transform duration-200 ease-in-out ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        } md:translate-x-0 z-10`}
+        className={
+          `fixed inset-y-0 left-0 w-64 bg-black/90 p-6 flex flex-col justify-between border-r border-purple-900 shadow-lg transform transition-transform duration-200 ease-in-out z-20 ${
+            isOpen ? 'translate-x-0' : '-translate-x-full'
+          } md:translate-x-0 md:static`
+        }
       >
         <div>
           <h1 className="text-2xl font-bold mb-8 bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
@@ -56,6 +67,7 @@ export default function Sidebar({ onDisconnect }: SidebarProps) {
               />
               <span className="text-base">Dashboard</span>
             </Link>
+
             <Link href="/dashboard/quests" className={getLinkClass('/dashboard/quests')}>
               <Image
                 src="/sidebar/quest.png"
@@ -66,7 +78,8 @@ export default function Sidebar({ onDisconnect }: SidebarProps) {
               />
               <span className="text-base">Quests</span>
             </Link>
-            <Link href="https://portal.catcents.io/" className={getLinkClass('https://portal.catcents.io/')}>
+
+            <Link href="https://portal.catcents.io/" className={getLinkClass('https://portal.catcents.io/') }>
               <Image
                 src="/sidebar/proposals.png"
                 alt="Proposals Icon"
@@ -76,6 +89,7 @@ export default function Sidebar({ onDisconnect }: SidebarProps) {
               />
               <span className="text-base">Proposals</span>
             </Link>
+
             <Link href="/dashboard/games" className={getLinkClass('/dashboard/games')}>
               <Image
                 src="/sidebar/games.png"
@@ -86,6 +100,7 @@ export default function Sidebar({ onDisconnect }: SidebarProps) {
               />
               <span className="text-base">Games</span>
             </Link>
+
             <Link href="/dashboard/leaderboard" className={getLinkClass('/dashboard/leaderboard')}>
               <Image
                 src="/sidebar/leaderboard.png"
@@ -96,6 +111,7 @@ export default function Sidebar({ onDisconnect }: SidebarProps) {
               />
               <span className="text-base">Leaderboard</span>
             </Link>
+
             <div className={getLinkClass('/dashboard/nft-staking', true)}>
               <Image
                 src="/sidebar/nft-staking.png"
@@ -111,6 +127,21 @@ export default function Sidebar({ onDisconnect }: SidebarProps) {
             </div>
           </nav>
         </div>
+
+        {/* Close Button: at bottom-right of sidebar */}
+        {isOpen && (
+          <button
+            onClick={() => setIsOpen(false)}
+            aria-label="Close menu"
+            className="absolute bottom-6 right-4 p-2 bg-transparent text-white md:hidden"
+          >
+            <div className="relative w-6 h-6">
+              <span className="absolute inset-0 block w-full h-0.5 bg-white transform rotate-45"></span>
+              <span className="absolute inset-0 block w-full h-0.5 bg-white transform -rotate-45"></span>
+            </div>
+          </button>
+        )}
+
         <button
           onClick={onDisconnect}
           className="bg-purple-700 text-white py-2 rounded-lg hover:bg-purple-600 transition-colors font-semibold"
@@ -122,7 +153,7 @@ export default function Sidebar({ onDisconnect }: SidebarProps) {
       {/* Overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 md:hidden z-0 transition-opacity duration-200 ease-in-out"
+          className="fixed inset-0 bg-black/50 z-10 md:hidden"
           onClick={() => setIsOpen(false)}
         />
       )}
