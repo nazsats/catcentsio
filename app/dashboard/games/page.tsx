@@ -204,12 +204,6 @@ export default function Games() {
       image: '/games/catslots.png',
     },
     {
-      id: 'catwheel',
-      title: 'Cat Wheel',
-      description: 'Spin the wheel for a chance to win Meow Miles or special rewards!',
-      image: '/games/catwheel.png',
-    },
-    {
       id: 'race',
       title: 'Kitty Race (Coming Soon)',
       description: 'Race your NFT cats for Meow Miles glory!',
