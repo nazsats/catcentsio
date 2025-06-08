@@ -221,8 +221,8 @@ export default function Games() {
         <Toaster position="top-right" toastOptions={{ style: { background: '#1a1a1a', color: '#fff', border: '1px solid #9333ea' } }} />
 
         {/* Header and Profile */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
-          <h2 className="text-2xl md:text-3xl font-bold text-purple-300">Games</h2>
+        <div className="flex flex-row flex-wrap justify-between items-center mb-6 md:mb-8 gap-4">
+          <h2 className="mt-20 text-xl md:text-2xl font-semibold text-purple-300">Games</h2>
           <div className="ml-auto">
             <Profile account={address} onCopyAddress={handleCopyAddress} onDisconnect={disconnect} />
           </div>

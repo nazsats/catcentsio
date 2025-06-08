@@ -151,8 +151,8 @@ export default function LeaderboardPage() {
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-5xl mx-auto">
           {/* Header Section: Title and Profile in the same row */}
-          <div className="flex items-center justify-between mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-cyan-400">
+          <div className="flex flex-row flex-wrap justify-between items-center mb-6 md:mb-8 gap-4">
+            <h1 className="mt-20 text-xl md:text-2xl font-semibold text-purple-300">
               Leaderboard
             </h1>
             <Profile

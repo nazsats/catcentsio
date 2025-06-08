@@ -19,16 +19,16 @@ export default function Profile({ account, onCopyAddress, onDisconnect }: Profil
   };
 
   return (
-    <div className="relative z-50 flex items-center justify-between md:justify-start bg-black/80 rounded-lg border border-purple-900 shadow-lg p-2 md:p-4 space-x-2 md:space-x-4">
-      {/* Left group: Address + Copy + (md-only Social) + Disconnect */}
-      <div className="flex items-center space-x-2 md:space-x-4">
+    <div className="relative z-50 -mt-2 flex items-center justify-between bg-black/80 rounded-lg border border-purple-900 shadow-lg p-2 md:p-4">
+      {/* Desktop-only group */}
+      <div className="hidden md:flex items-center space-x-4">
         {/* Address */}
-        <p className="text-gray-200 font-semibold text-sm md:text-base whitespace-nowrap">
+        <p className="text-gray-200 font-semibold text-base whitespace-nowrap">
           {account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Connecting...'}
         </p>
 
         {/* Copy Button */}
-        <div className="relative flex-shrink-0">
+        <div className="relative">
           <button
             onClick={handleCopy}
             className="text-purple-400 hover:text-purple-300 transition-colors"
@@ -50,70 +50,90 @@ export default function Profile({ account, onCopyAddress, onDisconnect }: Profil
             </svg>
           </button>
           {isCopied && (
-            <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-purple-700 text-white text-xs py-1 px-2 rounded shadow animate-fade-in">
+            <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-purple-700 text-white text-xs py-1 px-2 rounded shadow">
               Copied!
             </span>
           )}
         </div>
 
-        {/* Social Icons: hidden on mobile, visible from md */}
-        <div className="hidden md:flex items-center space-x-2">
+        {/* Social Icons */}
+        <div className="flex items-center space-x-3">
           <a
             href="https://x.com/CatCentsio/"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-purple-400 hover:text-purple-300 transition-colors flex-shrink-0"
+            className="text-purple-400 hover:text-purple-300 transition-colors"
             aria-label="Visit Catcents on X"
           >
-            <Image src="/x.png" alt="X" width={20} height={20} className="w-5 h-5 object-contain" />
+            <Image src="/x.png" alt="X" width={20} height={20} className="w-5 h-5" />
           </a>
           <a
             href="https://t.me/catcentsio"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-purple-400 hover:text-purple-300 transition-colors flex-shrink-0"
+            className="text-purple-400 hover:text-purple-300 transition-colors"
             aria-label="Telegram"
           >
-            <Image src="/telegram.png" alt="Telegram" width={20} height={20} className="w-5 h-5 object-contain" />
+            <Image src="/telegram.png" alt="Telegram" width={20} height={20} className="w-5 h-5" />
           </a>
           <a
             href="https://discord.gg/TXPbt7ztMC"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-purple-400 hover:text-purple-300 transition-colors flex-shrink-0"
+            className="text-purple-400 hover:text-purple-300 transition-colors"
             aria-label="Discord"
           >
-            <Image src="/discord.png" alt="Discord" width={20} height={20} className="w-5 h-5 object-contain" />
+            <Image src="/discord.png" alt="Discord" width={20} height={20} className="w-5 h-5" />
           </a>
           <a
             href="https://catcents.gitbook.io/catcents"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-purple-400 hover:text-purple-300 transition-colors flex-shrink-0"
+            className="text-purple-400 hover:text-purple-300 transition-colors"
             aria-label="Docs"
           >
-            <Image src="/gitbook.png" alt="Docs" width={20} height={20} className="w-5 h-5 object-contain" />
+            <Image src="/gitbook.png" alt="Docs" width={20} height={20} className="w-5 h-5" />
           </a>
         </div>
 
-        {/* Disconnect Button */}
+        {/* Desktop Disconnect */}
         <button
           onClick={onDisconnect}
-          className="bg-purple-700 text-white px-3 py-1 md:py-2 rounded-lg hover:bg-purple-600 transition-colors text-sm md:text-base font-semibold flex-shrink-0"
+          className="bg-purple-700 text-white px-3 py-2 rounded-lg hover:bg-purple-600 transition-colors font-semibold"
         >
           Disconnect
         </button>
       </div>
 
-      {/* Avatar: stays at right on mobile, moves inline on desktop */}
-      <Image
-        src="/avatar.png"
-        alt="Profile Avatar"
-        width={40}
-        height={40}
-        className="w-10 h-10 object-contain flex-shrink-0"
-        onError={(e) => { e.currentTarget.src = '/avatar.png'; }}
-      />
+      {/* Mobile-only group */}
+      <div className="flex md:hidden items-center space-x-2">
+        <button
+          onClick={onDisconnect}
+          className="bg-purple-700 text-white px-3 py-1 rounded-lg hover:bg-purple-600 transition-colors text-sm font-semibold"
+        >
+          Disconnect
+        </button>
+        <Image
+          src="/avatar.png"
+          alt="Profile Avatar"
+          width={40}
+          height={40}
+          className="w-10 h-10 object-contain -mt-1"
+          onError={(e) => { e.currentTarget.src = '/avatar.png'; }}
+        />
+      </div>
+
+      {/* Desktop Avatar inline */}
+      <div className="hidden md:flex flex-shrink-0">
+        <Image
+          src="/avatar.png"
+          alt="Profile Avatar"
+          width={40}
+          height={40}
+          className="w-10 h-10 object-contain"
+          onError={(e) => { e.currentTarget.src = '/avatar.png'; }}
+        />
+      </div>
     </div>
   );
 }

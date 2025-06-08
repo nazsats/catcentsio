@@ -1,4 +1,5 @@
 'use client';
+
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
@@ -34,7 +35,7 @@ export default function Sidebar({ onDisconnect }: SidebarProps) {
         <button
           onClick={() => setIsOpen(true)}
           aria-label="Open menu"
-          className="fixed top-20 left-4 z-30 p-2 bg-purple-700 rounded-md md:hidden"
+          className="fixed top-14 left-4 z-30 p-2 bg-purple-700 rounded-md md:hidden"
         >
           <div className="space-y-1.5">
             <span className="block w-6 h-0.5 bg-white"></span>
@@ -44,91 +45,58 @@ export default function Sidebar({ onDisconnect }: SidebarProps) {
         </button>
       )}
 
-      {/* Sidebar with close button inside */}
+      {/* Sidebar panel */}
       <aside
-        className={
-          `fixed inset-y-0 left-0 w-64 bg-black/90 p-6 flex flex-col justify-between border-r border-purple-900 shadow-lg transform transition-transform duration-200 ease-in-out z-20 ${
-            isOpen ? 'translate-x-0' : '-translate-x-full'
-          } md:translate-x-0 md:static`
-        }
+        className={`
+          fixed inset-y-0 left-0 w-64 bg-black/90 p-6 flex flex-col justify-between
+          border-r border-purple-900 shadow-lg transform transition-transform
+          duration-200 ease-in-out z-20
+          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+          md:translate-x-0 md:static
+        `}
       >
         <div>
-          <h1 className="text-2xl font-bold mb-8 bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
+          <h1 className="mt-4 text-2xl font-bold mb-8 bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
             Catcents
           </h1>
           <nav className="space-y-4">
             <Link href="/dashboard" className={getLinkClass('/dashboard')}>
-              <Image
-                src="/sidebar/dashboard.png"
-                alt="Dashboard Icon"
-                width={24}
-                height={24}
-                className="w-6 h-6"
-              />
-              <span className="text-base">Dashboard</span>
+              <Image src="/sidebar/dashboard.png" alt="Dashboard" width={24} height={24} className="w-6 h-6" />
+              <span>Dashboard</span>
             </Link>
-
             <Link href="/dashboard/quests" className={getLinkClass('/dashboard/quests')}>
-              <Image
-                src="/sidebar/quest.png"
-                alt="Quests Icon"
-                width={24}
-                height={24}
-                className="w-6 h-6"
-              />
-              <span className="text-base">Quests</span>
+              <Image src="/sidebar/quest.png" alt="Quests" width={24} height={24} className="w-6 h-6" />
+              <span>Quests</span>
             </Link>
-
-            <Link href="https://portal.catcents.io/" className={getLinkClass('https://portal.catcents.io/') }>
-              <Image
-                src="/sidebar/proposals.png"
-                alt="Proposals Icon"
-                width={24}
-                height={24}
-                className="w-6 h-6"
-              />
-              <span className="text-base">Proposals</span>
+            <Link href="https://portal.catcents.io/" className={getLinkClass('https://portal.catcents.io/')}>
+              <Image src="/sidebar/proposals.png" alt="Proposals" width={24} height={24} className="w-6 h-6" />
+              <span>Proposals</span>
             </Link>
-
             <Link href="/dashboard/games" className={getLinkClass('/dashboard/games')}>
-              <Image
-                src="/sidebar/games.png"
-                alt="Games Icon"
-                width={24}
-                height={24}
-                className="w-6 h-6"
-              />
-              <span className="text-base">Games</span>
+              <Image src="/sidebar/games.png" alt="Games" width={24} height={24} className="w-6 h-6" />
+              <span>Games</span>
             </Link>
-
             <Link href="/dashboard/leaderboard" className={getLinkClass('/dashboard/leaderboard')}>
-              <Image
-                src="/sidebar/leaderboard.png"
-                alt="Leaderboard Icon"
-                width={24}
-                height={24}
-                className="w-6 h-6"
-              />
-              <span className="text-base">Leaderboard</span>
+              <Image src="/sidebar/leaderboard.png" alt="Leaderboard" width={24} height={24} className="w-6 h-6" />
+              <span>Leaderboard</span>
             </Link>
-
             <div className={getLinkClass('/dashboard/nft-staking', true)}>
               <Image
                 src="/sidebar/nft-staking.png"
-                alt="NFT Staking Icon"
+                alt="NFT Staking"
                 width={24}
                 height={24}
                 className="w-6 h-6 opacity-50"
               />
               <div className="flex items-center space-x-2">
-                <span className="text-base">NFT Staking</span>
+                <span>NFT Staking</span>
                 <span className="text-xs text-yellow-400 bg-gray-800 px-1 rounded">Coming Soon</span>
               </div>
             </div>
           </nav>
         </div>
 
-        {/* Close Button: at bottom-right of sidebar */}
+        {/* Close Button: bottom-right on mobile */}
         {isOpen && (
           <button
             onClick={() => setIsOpen(false)}

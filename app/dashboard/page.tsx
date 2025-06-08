@@ -517,8 +517,8 @@ export default function DashboardPage() {
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-black to-purple-950 text-white">
       <main className="flex-1 p-4 md:p-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
-          <h2 className="text-xl md:text-2xl font-semibold text-purple-300">Dashboard</h2>
+        <div className="flex flex-row flex-wrap justify-between items-center mb-6 md:mb-8 gap-4">
+          <h2 className="mt-20 text-xl md:text-2xl font-semibold text-purple-300">Dashboard</h2>
           <div className="ml-auto">
             <Profile account={account ?? null} onCopyAddress={handleCopyAddress} onDisconnect={disconnect} />
           </div>

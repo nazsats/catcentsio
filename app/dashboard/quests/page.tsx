@@ -343,9 +343,9 @@ export default function QuestsPage() {
     <div className="flex min-h-screen bg-gradient-to-br from-black to-purple-950 text-white">
       <main className="flex-1 p-4 md:p-8">
         <Toaster position="top-right" toastOptions={{ style: { background: '#1a1a1a', color: '#fff', border: '1px solid #9333ea' } }} />
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
-          <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-purple-500 to-cyan-400 bg-clip-text text-transparent">
-            Catcents Quests
+        <div className="flex flex-row flex-wrap justify-between items-center mb-6 md:mb-8 gap-4">
+          <h1 className="mt-20 text-xl md:text-2xl font-semibold text-purple-300">
+            Quests
           </h1>
           <div className="ml-auto">
             <Profile account={account} onCopyAddress={handleCopyAddress} onDisconnect={disconnect} />
