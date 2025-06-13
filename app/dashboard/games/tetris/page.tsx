@@ -680,7 +680,7 @@ export default function Tetris() {
 
         <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
           <h1 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
-            Cat Tetris
+           Tetris Reborn
           </h1>
           <Profile
             account={address}
