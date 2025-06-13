@@ -204,6 +204,13 @@ export default function Games() {
       image: '/games/catslots.png',
     },
     {
+      id: 'tetris',
+      title: 'Tetris Reborn',
+      description: 'Clear the cells with your movements.',
+      image: '/games/tetris.png',
+      comingSoon: true,
+    },
+        {
       id: 'race',
       title: 'Kitty Race (Coming Soon)',
       description: 'Race your NFT cats for Meow Miles glory!',
