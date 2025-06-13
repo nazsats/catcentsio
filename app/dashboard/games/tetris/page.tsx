@@ -20,19 +20,19 @@ const BET_AMOUNT = 0.01;
 
 // Tetromino shapes type
 type TetrominoShape =
-  | readonly [readonly [1, 1, 1, 1]]
-  | readonly [readonly [1, 0, 0], readonly [1, 1, 1]]
-  | readonly [readonly [0, 0, 1], readonly [1, 1, 1]]
-  | readonly [readonly [1, 1], readonly [1, 1]]
-  | readonly [readonly [0, 1, 1], readonly [1, 1, 0]]
-  | readonly [readonly [0, 1, 0], readonly [1, 1, 1]]
-  | readonly [readonly [1, 1, 0], readonly [0, 1, 1]]
-  | readonly [readonly [1, 1], readonly [1, 0], readonly [1, 0]]
-  | readonly [readonly [0, 1], readonly [0, 1], readonly [1, 1]]
-  | readonly [readonly [1, 0], readonly [1, 1], readonly [0, 1]]
-  | readonly [readonly [0, 1], readonly [1, 1], readonly [1, 0]]
-  | readonly [readonly [1, 0], readonly [1, 1], readonly [1, 0]]
-  | readonly [readonly [1, 1, 1, 1]];
+  | readonly [readonly [1, 1, 1, 1]] // I horizontal
+  | readonly [readonly [1], readonly [1], readonly [1], readonly [1]] // I vertical
+  | readonly [readonly [1, 0, 0], readonly [1, 1, 1]] // J
+  | readonly [readonly [0, 0, 1], readonly [1, 1, 1]] // L
+  | readonly [readonly [1, 1], readonly [1, 1]] // O
+  | readonly [readonly [0, 1, 1], readonly [1, 1, 0]] // S
+  | readonly [readonly [0, 1, 0], readonly [1, 1, 1]] // T
+  | readonly [readonly [1, 1, 0], readonly [0, 1, 1]] // Z
+  | readonly [readonly [1, 1], readonly [1, 0], readonly [1, 0]] // J rotated
+  | readonly [readonly [0, 1], readonly [0, 1], readonly [1, 1]] // L rotated
+  | readonly [readonly [1, 0], readonly [1, 1], readonly [0, 1]] // S rotated
+  | readonly [readonly [0, 1], readonly [1, 1], readonly [1, 0]] // Z rotated
+  | readonly [readonly [1, 0], readonly [1, 1], readonly [1, 0]]; // T rotated
 
 // Tetrominoes with colors
 const TETROMINOES = {
@@ -59,10 +59,10 @@ const validateShape = (shape: number[][]): TetrominoShape => {
   }
 
   if (rows === 1 && cols === 4) {
-    return [[shape[0][0], shape[0][1], shape[0][2], shape[0][3]]] as TetrominoShape;
+    return [[1, 1, 1, 1]] as TetrominoShape; // I horizontal
   }
   if (rows === 4 && cols === 1) {
-    return [[shape[0][0], shape[1][0], shape[2][0], shape[3][0]]] as TetrominoShape;
+    return [[1], [1], [1], [1]] as TetrominoShape; // I vertical
   }
   if (rows === 2 && cols === 3) {
     return [
@@ -84,6 +84,14 @@ const validateShape = (shape: number[][]): TetrominoShape => {
     ] as TetrominoShape;
   }
   throw new Error(`Invalid tetromino shape dimensions: ${rows}x${cols}`);
+};
+
+// Wall kick data for "I" tetromino (standard SRS)
+const WALL_KICKS_I: { [key: number]: [number, number][] } = {
+  0: [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]], // 0 -> 1
+  1: [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]], // 1 -> 2
+  2: [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]], // 2 -> 3
+  3: [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]], // 3 -> 0
 };
 
 const rotate = (m: TetrominoShape): TetrominoShape => {
@@ -132,6 +140,7 @@ export default function Tetris() {
   const [showModal, setShowModal] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [dropSpeed, setDropSpeed] = useState(BASE_DROP_INTERVAL);
+  const [cellSize, setCellSize] = useState(28);
   const raf = useRef<number | null>(null);
   const lastKeyPress = useRef<{ [key: string]: number }>({});
   const lastTouchPress = useRef<{ [key: string]: number }>({});
@@ -139,7 +148,6 @@ export default function Tetris() {
   const isLocking = useRef<boolean>(false);
 
   // Dynamic cell size
-  const [cellSize, setCellSize] = useState(28);
   useEffect(() => {
     const updateCellSize = () => {
       const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
@@ -212,6 +220,24 @@ export default function Tetris() {
       return false;
     },
     [grid]
+  );
+
+  // Wall kick for rotation
+  const tryWallKick = useCallback(
+    (pos: { x: number; y: number }, shape: TetrominoShape, key: Key, oldRot: number): { x: number; y: number } | null => {
+      if (key !== 'I') return pos; // Only apply wall kicks for I tetromino
+      const kicks = WALL_KICKS_I[oldRot % 4];
+      for (const [dx, dy] of kicks) {
+        const newPos = { x: pos.x + dx, y: pos.y + dy };
+        if (!collides(newPos, shape)) {
+          console.log(`Wall kick successful: dx=${dx}, dy=${dy}, newPos=`, newPos);
+          return newPos;
+        }
+      }
+      console.log('Wall kick failed: No valid position found');
+      return null;
+    },
+    [collides]
   );
 
   // Spawn new piece
@@ -385,7 +411,32 @@ export default function Tetris() {
         if (e.key === 'ArrowLeft') np.x--;
         if (e.key === 'ArrowRight') np.x++;
         if (e.key === 'ArrowDown') np.y++;
-        if (e.key === 'ArrowUp') nr++;
+        if (e.key === 'ArrowUp') {
+          console.log('Rotation attempted:', { key: current.key, currentRot: current.rot });
+          nr = current.rot + 1;
+          let shape: TetrominoShape = TETROMINOES[current.key].shape;
+          try {
+            for (let i = 0; i < nr % 4; i++) {
+              shape = rotate(shape);
+            }
+            let newPos = np;
+            if (collides(np, shape)) {
+              console.log('Rotation collision detected, trying wall kick');
+              newPos = tryWallKick(np, shape, current.key, current.rot) || np;
+              if (collides(newPos, shape)) {
+                console.log('Rotation failed after wall kick');
+                return;
+              }
+            }
+            console.log('Rotation successful:', { newRot: nr, newPos });
+            setCurrent(c => ({ ...c, pos: newPos, rot: nr }));
+            return; // Prevent further position updates
+          } catch (err) {
+            console.error('Rotation failed in keyboard handler:', err);
+            toast.error('Error rotating piece.');
+          }
+          return; // Prevent further position updates
+        }
         if (e.key === ' ') {
           let dropY = np.y;
           let dropShape: TetrominoShape = TETROMINOES[current.key].shape;
@@ -421,7 +472,7 @@ export default function Tetris() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [gameStatus, current, collides, lockAndClear]);
+  }, [gameStatus, current, collides, lockAndClear, tryWallKick]);
 
   // Touch controls with debouncing
   const handleTouchAction = (action: string) => {
@@ -449,7 +500,31 @@ export default function Tetris() {
     if (action === 'left') np.x--;
     if (action === 'right') np.x++;
     if (action === 'down') np.y++;
-    if (action === 'rotate') nr++;
+    if (action === 'rotate') {
+      console.log('Touch rotation attempted:', { key: current.key, currentRot: current.rot });
+      nr = current.rot + 1;
+      let shape: TetrominoShape = TETROMINOES[current.key].shape;
+      try {
+        for (let i = 0; i < nr % 4; i++) {
+          shape = rotate(shape);
+        }
+        let newPos = np;
+        if (collides(np, shape)) {
+          console.log('Touch rotation collision detected, trying wall kick');
+          newPos = tryWallKick(np, shape, current.key, current.rot) || np;
+          if (collides(newPos, shape)) {
+            console.log('Touch rotation failed after wall kick');
+            return;
+          }
+        }
+        console.log('Touch rotation successful:', { newRot: nr, newPos });
+        setCurrent(c => ({ ...c, pos: newPos, rot: nr }));
+        return; // Prevent further position updates
+      } catch (err) {
+        console.error('Touch rotation failed:', err);
+        toast.error('Error rotating piece.');
+      }
+    }
     if (action === 'place') {
       let dropY = np.y;
       let dropShape: TetrominoShape = TETROMINOES[current.key].shape;
@@ -531,24 +606,24 @@ export default function Tetris() {
 
   // Render cell
   const renderCell = (y: number, x: number) => {
-    const base = TETROMINOES[current.key].shape;
-    let shape: TetrominoShape = base;
-    for (let i = 0; i < current.rot % 4; i++) {
-      try {
+    try {
+      const base = TETROMINOES[current.key].shape;
+      let shape: TetrominoShape = base;
+      for (let i = 0; i < current.rot % 4; i++) {
         shape = rotate(shape);
-      } catch (err) {
-        console.error('Rotation failed in renderCell:', err);
-        return null;
       }
+      const ry = y - current.pos.y, rx = x - current.pos.x;
+      if (ry >= 0 && ry < shape.length && rx >= 0 && rx < shape[0].length && shape[ry][rx]) {
+        return <div className={`${TETROMINOES[current.key].color} w-full h-full rounded-sm shadow-md`} />;
+      }
+      if (grid[y][x] !== 'bg-black') {
+        return <div className={`${grid[y][x]} w-full h-full rounded-sm shadow-md`} />;
+      }
+      return null;
+    } catch (err) {
+      console.error('RenderCell error:', err);
+      return null;
     }
-    const ry = y - current.pos.y, rx = x - current.pos.x;
-    if (ry >= 0 && ry < shape.length && rx >= 0 && rx < shape[0].length && shape[ry][rx]) {
-      return <div className={`${TETROMINOES[current.key].color} w-full h-full rounded-sm shadow-md`} />;
-    }
-    if (grid[y][x] !== 'bg-black') {
-      return <div className={`${grid[y][x]} w-full h-full rounded-sm shadow-md`} />;
-    }
-    return null;
   };
 
   // Modal component
@@ -680,7 +755,7 @@ export default function Tetris() {
 
         <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
           <h1 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
-           Tetris Reborn
+            Tetris Reborn
           </h1>
           <Profile
             account={address}
