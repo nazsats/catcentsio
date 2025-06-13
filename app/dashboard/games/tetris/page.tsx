@@ -13,7 +13,7 @@ import styles from './CatTetris.module.css';
 
 // Tetris dimensions
 const COLS = 10;
-const ROWS = 15; // 15 rows
+const ROWS = 15;
 const BASE_DROP_INTERVAL = 800;
 const INITIAL_POS = { x: 3, y: 0 };
 const BET_AMOUNT = 0.01;
@@ -123,15 +123,16 @@ export default function Tetris() {
   const [dropSpeed, setDropSpeed] = useState(BASE_DROP_INTERVAL);
   const raf = useRef<number | null>(null);
   const lastKeyPress = useRef<{ [key: string]: number }>({});
+  const lastTouchPress = useRef<{ [key: string]: number }>({});
   const lastDropTime = useRef<number>(0);
-  const isLocking = useRef<boolean>(false); // Prevent duplicate lockAndClear calls
+  const isLocking = useRef<boolean>(false);
 
   // Dynamic cell size
   const [cellSize, setCellSize] = useState(28);
   useEffect(() => {
     const updateCellSize = () => {
       const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
-      setCellSize(Math.min(28, Math.floor(vw * 0.05)));
+      setCellSize(Math.min(28, Math.floor(vw * 0.06))); // Increased for mobile
     };
     updateCellSize();
     window.addEventListener('resize', updateCellSize);
@@ -206,17 +207,17 @@ export default function Tetris() {
   const spawnPiece = useCallback(() => {
     const k = (Object.keys(TETROMINOES) as Key[])[Math.floor(Math.random() * 7)];
     const newPiece = { key: k, rot: 0, pos: { ...INITIAL_POS } };
-    console.log('Spawning piece:', newPiece); // Debug log
+    console.log('Spawning piece:', newPiece);
     setCurrent(newPiece);
   }, []);
 
   // Lock piece and clear lines
   const lockAndClear = useCallback(
     (shape: TetrominoShape, pos: { x: number; y: number }) => {
-      if (isLocking.current) return; // Prevent duplicate calls
+      if (isLocking.current) return;
       isLocking.current = true;
 
-      console.log('Locking piece at pos:', pos, 'Shape:', shape); // Debug log
+      console.log('Locking piece at pos:', pos, 'Shape:', shape);
 
       setGrid((g) => {
         const ng = g.map((r) => [...r]);
@@ -230,17 +231,17 @@ export default function Tetris() {
           })
         );
 
-        console.log('Grid after placement:', ng); // Debug log
+        console.log('Grid after placement:', ng);
 
         // Find cleared rows
         let cleared = 0;
         const clearedRows: number[] = [];
         for (let i = 0; i < ROWS; i++) {
-          console.log(`Row ${i} contents:`, ng[i]); // Debug log
+          console.log(`Row ${i} contents:`, ng[i]);
           if (ng[i].every((c) => c !== 'bg-black' && c.includes('bg-'))) {
             clearedRows.push(i);
             cleared++;
-            console.log(`Row ${i} cleared`); // Debug log
+            console.log(`Row ${i} cleared`);
           }
         }
 
@@ -254,7 +255,7 @@ export default function Tetris() {
           }
         }
 
-        console.log('Cleared lines:', cleared, 'New grid:', newGrid); // Debug log
+        console.log('Cleared lines:', cleared, 'New grid:', newGrid);
 
         // Update score and Meow Miles
         if (cleared > 0) {
@@ -263,13 +264,13 @@ export default function Tetris() {
 
           setScore((prev) => {
             const newScore = prev + points;
-            console.log('Previous score:', prev, 'Points added:', points, 'New score:', newScore); // Debug log
+            console.log('Previous score:', prev, 'Points added:', points, 'New score:', newScore);
             return newScore;
           });
 
           setMeowMiles((prev) => {
             const newMiles = prev + miles;
-            console.log('Awarding miles:', miles, 'New Meow Miles:', newMiles); // Debug log
+            console.log('Awarding miles:', miles, 'New Meow Miles:', newMiles);
             return newMiles;
           });
 
@@ -326,14 +327,14 @@ export default function Tetris() {
   // Game loop
   useEffect(() => {
     if (gameStatus !== 'playing') return;
-    console.log('Game loop started'); // Debug log
+    console.log('Game loop started');
     let last = performance.now();
     const loop = (now: number) => {
-      const dt = Math.min(now - last, 100); // Cap delta time
+      const dt = Math.min(now - last, 100);
       last = now;
       lastDropTime.current += dt;
       if (lastDropTime.current >= dropSpeed) {
-        console.log('Attempting to drop piece:', current); // Debug log
+        console.log('Attempting to drop piece:', current);
         const base = TETROMINOES[current.key].shape;
         let shape: TetrominoShape = base;
         for (let i = 0; i < current.rot % 4; i++) {
@@ -357,22 +358,22 @@ export default function Tetris() {
     };
     raf.current = requestAnimationFrame(loop);
     return () => {
-      console.log('Game loop stopped'); // Debug log
+      console.log('Game loop stopped');
       if (raf.current) cancelAnimationFrame(raf.current);
     };
   }, [gameStatus, current, dropSpeed, collides, lockAndClear]);
 
   // Keyboard controls with debouncing
   useEffect(() => {
-    const DEBOUNCE_MS = 100;
+    const DEBOUNCE_MS = 50; // Reduced for responsiveness
     const onKey = (e: KeyboardEvent) => {
       if (gameStatus !== 'playing') return;
       const now = Date.now();
-      if (e.key.startsWith('Arrow') || e.key === 'p') {
+      if (e.key.startsWith('Arrow') || e.key === 'p' || e.key === ' ') {
         if (lastKeyPress.current[e.key] && now - lastKeyPress.current[e.key] < DEBOUNCE_MS) return;
         lastKeyPress.current[e.key] = now;
       }
-      if (e.key.startsWith('Arrow')) {
+      if (e.key.startsWith('Arrow') || e.key === ' ') {
         e.preventDefault();
         const np = { ...current.pos };
         let nr = current.rot;
@@ -380,6 +381,19 @@ export default function Tetris() {
         if (e.key === 'ArrowRight') np.x++;
         if (e.key === 'ArrowDown') np.y++;
         if (e.key === 'ArrowUp') nr++;
+        if (e.key === ' ') {
+          // Hard drop
+          let dropY = np.y;
+          let dropShape: TetrominoShape = TETROMINOES[current.key].shape;
+          for (let i = 0; i < current.rot % 4; i++) {
+            dropShape = rotate(dropShape);
+          }
+          while (!collides({ x: np.x, y: dropY + 1 }, dropShape)) {
+            dropY++;
+          }
+          lockAndClear(dropShape, { x: np.x, y: dropY });
+          return;
+        }
         const base = TETROMINOES[current.key].shape;
         let shape: TetrominoShape = base;
         try {
@@ -396,7 +410,50 @@ export default function Tetris() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [gameStatus, current, collides]);
+  }, [gameStatus, current, collides, lockAndClear]);
+
+  // Touch controls with debouncing
+  const handleTouchAction = (action: string) => {
+    if (gameStatus !== 'playing') return;
+    const now = Date.now();
+    if (lastTouchPress.current[action] && now - lastTouchPress.current[action] < 50) return;
+    lastTouchPress.current[action] = now;
+
+    const np = { ...current.pos };
+    let nr = current.rot;
+    if (action === 'left') np.x--;
+    if (action === 'right') np.x++;
+    if (action === 'down') np.y++;
+    if (action === 'rotate') nr++;
+    if (action === 'place') {
+      // Hard drop
+      let dropY = np.y;
+      let dropShape: TetrominoShape = TETROMINOES[current.key].shape;
+      for (let i = 0; i < current.rot % 4; i++) {
+        dropShape = rotate(dropShape);
+      }
+      while (!collides({ x: np.x, y: dropY + 1 }, dropShape)) {
+        dropY++;
+      }
+      lockAndClear(dropShape, { x: np.x, y: dropY });
+      return;
+    }
+    if (action === 'pause') {
+      setGameStatus(s => (s === 'playing' ? 'idle' : 'playing'));
+      return;
+    }
+    const base = TETROMINOES[current.key].shape;
+    let shape: TetrominoShape = base;
+    try {
+      for (let i = 0; i < nr % 4; i++) {
+        shape = rotate(shape);
+      }
+      if (!collides(np, shape)) setCurrent(c => ({ ...c, pos: np, rot: nr }));
+    } catch (err) {
+      console.error('Touch rotation failed:', err);
+      toast.error('Error rotating piece.');
+    }
+  };
 
   // Start game
   const startGame = useCallback(async () => {
@@ -539,7 +596,7 @@ export default function Tetris() {
 
   if (!address) return null;
 
-  console.log('Rendering score:', score); // Debug render
+  console.log('Rendering score:', score);
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-900 to-black text-white relative overflow-hidden">
@@ -555,12 +612,12 @@ export default function Tetris() {
           [...Array(10)].map((_, i) => (
             <div
               key={`sparkle-${i}`}
-            className={styles.sparkle}
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 1}s`,
-            }}
+              className={styles.sparkle}
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 1}s`,
+              }}
             />
           ))}
       </div>
@@ -587,7 +644,7 @@ export default function Tetris() {
         />
 
         {showConfetti && (
-          <Confetti width={window.innerWidth} height={window.innerHeight} recycle={false} numberOfPieces={300} />
+          <Confetti width={window.innerWidth} height={window.innerHeight} recycle={false} numberOfPieces={100} />
         )}
 
         <Modal isOpen={showModal} onClose={() => setShowModal(false)} score={score} />
@@ -626,7 +683,7 @@ export default function Tetris() {
           </p>
         </div>
 
-        <section className="flex justify-center mt-6 mb-6 bg-gray-800/50 rounded-2xl border border-cyan-500/20 shadow-lg p-6">
+        <section className="flex flex-col items-center mt-6 mb-6 bg-gray-800/50 rounded-2xl border border-cyan-500/20 shadow-lg p-6">
           <div
             className="grid mt-6 mb-6 gap-[2px]"
             style={{ gridTemplateRows: `repeat(${ROWS}, ${cellSize}px)`, gridTemplateColumns: `repeat(${COLS}, ${cellSize}px)` }}
@@ -642,6 +699,51 @@ export default function Tetris() {
                 </div>
               ))
             )}
+          </div>
+          {/* Touch controls */}
+          <div className="flex flex-wrap justify-center mt-4 w-full max-w-xs mx-auto gap-2 controls">
+            <button
+              className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-lg font-semibold"
+              onTouchStart={() => handleTouchAction('left')}
+              aria-label="Move left"
+            >
+              ←
+            </button>
+            <button
+              className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-lg font-semibold"
+              onTouchStart={() => handleTouchAction('right')}
+              aria-label="Move right"
+            >
+              →
+            </button>
+            <button
+              className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-lg font-semibold"
+              onTouchStart={() => handleTouchAction('down')}
+              aria-label="Move down"
+            >
+              ↓
+            </button>
+            <button
+              className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-lg font-semibold"
+              onTouchStart={() => handleTouchAction('rotate')}
+              aria-label="Rotate"
+            >
+              ↻
+            </button>
+            <button
+              className="px-4 py-2 bg-purple-500 text-white rounded-lg text-lg font-semibold"
+              onTouchStart={() => handleTouchAction('place')}
+              aria-label="Place piece"
+            >
+              ⬇
+            </button>
+            <button
+              className="px-4 py-2 bg-purple-500 text-white rounded-lg text-lg font-semibold"
+              onTouchStart={() => handleTouchAction('pause')}
+              aria-label="Pause"
+            >
+              ⏸
+            </button>
           </div>
         </section>
 
