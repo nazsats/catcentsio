@@ -203,12 +203,11 @@ export default function Games() {
       description: 'Spin the reels with cute cats to win Meow Miles!',
       image: '/games/catslots.png',
     },
-    {
+        {
       id: 'tetris',
       title: 'Tetris Reborn',
       description: 'Clear the cells with your movements.',
       image: '/games/tetris.png',
-      comingSoon: true,
     },
         {
       id: 'race',
