@@ -94,7 +94,7 @@ const rotate = (m: TetrominoShape): TetrominoShape => {
 };
 
 // Smart contract
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CATTETRIS_CONTRACT_ADDRESS || '0xD00C45AC031F20c8931B25fDb937A830f891b967';
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CATTETRIS_CONTRACT_ADDRESS || '0xf7d5e7C3cD4E5d1415DbdA796e87976B36F81a20';
 const contractAbi = [
   { type: 'function', name: 'placeBet', inputs: [], outputs: [], stateMutability: 'payable' },
   { type: 'event', name: 'GameResult', inputs: [{ name: 'player', type: 'address', indexed: true }, { name: 'score', type: 'uint256', indexed: false }] },
