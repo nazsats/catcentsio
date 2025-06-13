@@ -27,7 +27,6 @@ type TetrominoShape =
   | readonly [readonly [0, 1, 1], readonly [1, 1, 0]]
   | readonly [readonly [0, 1, 0], readonly [1, 1, 1]]
   | readonly [readonly [1, 1, 0], readonly [0, 1, 1]]
-  // Rotated shapes (3x2 for J, L, S, T, Z; 4x1 for I)
   | readonly [readonly [1, 1], readonly [1, 0], readonly [1, 0]]
   | readonly [readonly [0, 1], readonly [0, 1], readonly [1, 1]]
   | readonly [readonly [1, 0], readonly [1, 1], readonly [0, 1]]
@@ -52,7 +51,6 @@ const validateShape = (shape: number[][]): TetrominoShape => {
   const rows = shape.length;
   const cols = shape[0]?.length || 0;
 
-  // Validate content (only 0s and 1s, consistent row lengths)
   for (const row of shape) {
     if (row.length !== cols) throw new Error('Inconsistent row lengths');
     for (const cell of row) {
@@ -60,37 +58,35 @@ const validateShape = (shape: number[][]): TetrominoShape => {
     }
   }
 
-  // Construct shape based on dimensions
   if (rows === 1 && cols === 4) {
-    return [[shape[0][0], shape[0][1], shape[0][2], shape[0][3]]] as TetrominoShape; // I
+    return [[shape[0][0], shape[0][1], shape[0][2], shape[0][3]]] as TetrominoShape;
   }
   if (rows === 4 && cols === 1) {
-    return [[shape[0][0], shape[1][0], shape[2][0], shape[3][0]]] as TetrominoShape; // I rotated
+    return [[shape[0][0], shape[1][0], shape[2][0], shape[3][0]]] as TetrominoShape;
   }
   if (rows === 2 && cols === 3) {
     return [
       [shape[0][0], shape[0][1], shape[0][2]],
       [shape[1][0], shape[1][1], shape[1][2]],
-    ] as TetrominoShape; // J, L, S, T, Z
+    ] as TetrominoShape;
   }
   if (rows === 3 && cols === 2) {
     return [
       [shape[0][0], shape[0][1]],
       [shape[1][0], shape[1][1]],
       [shape[2][0], shape[2][1]],
-    ] as TetrominoShape; // J, L, S, T, Z rotated
+    ] as TetrominoShape;
   }
   if (rows === 2 && cols === 2) {
     return [
       [shape[0][0], shape[0][1]],
       [shape[1][0], shape[1][1]],
-    ] as TetrominoShape; // O
+    ] as TetrominoShape;
   }
   throw new Error(`Invalid tetromino shape dimensions: ${rows}x${cols}`);
 };
 
 const rotate = (m: TetrominoShape): TetrominoShape => {
-  // Transpose and reverse rows to rotate 90 degrees clockwise
   const rotated: number[][] = Array.from({ length: m[0].length }, (_, i) =>
     m.map(row => row[i]).reverse()
   );
@@ -105,11 +101,26 @@ const contractAbi = [
 ];
 
 export default function Tetris() {
-  const { address, isConnecting } = useAccount();
+  const { address, isConnecting, isDisconnected } = useAccount();
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
   const { writeContract, isPending } = useWriteContract();
-  const { data: balanceData } = useBalance({ address, chainId: monadTestnet.id });
+  const { data: balanceData, error: balanceError, isError: isBalanceError } = useBalance({ address, chainId: monadTestnet.id });
+
+  // Log wallet and balance state
+  useEffect(() => {
+    console.log('useAccount:', { isConnecting, isDisconnected, address });
+    console.log('useBalance:', { balanceData, balanceError, isBalanceError });
+    if (isBalanceError && balanceError) {
+      toast.error(`Balance query failed: ${balanceError.message}`);
+    }
+    if (isConnecting && address) {
+      const timer = setTimeout(() => {
+        toast.error('Wallet connection is taking too long. Please reconnect via the Profile button.');
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [isConnecting, isDisconnected, address, balanceData, balanceError, isBalanceError]);
 
   // State
   const [grid, setGrid] = useState<string[][]>(Array.from({ length: ROWS }, () => Array(COLS).fill('bg-black')));
@@ -132,7 +143,7 @@ export default function Tetris() {
   useEffect(() => {
     const updateCellSize = () => {
       const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
-      setCellSize(Math.min(28, Math.floor(vw * 0.06))); // Increased for mobile
+      setCellSize(Math.min(28, Math.floor(vw * 0.06)));
     };
     updateCellSize();
     window.addEventListener('resize', updateCellSize);
@@ -141,7 +152,7 @@ export default function Tetris() {
 
   // Load user stats
   useEffect(() => {
-    if (isConnecting || !address) return;
+    if (!address) return;
     (async () => {
       try {
         const ref = doc(db, 'users', address);
@@ -155,7 +166,7 @@ export default function Tetris() {
         toast.error('Failed to load game stats.');
       }
     })();
-  }, [address, isConnecting]);
+  }, [address]);
 
   // Save score
   const saveScore = useCallback(
@@ -222,7 +233,6 @@ export default function Tetris() {
       setGrid((g) => {
         const ng = g.map((r) => [...r]);
 
-        // Place piece
         shape.forEach((r, y) =>
           r.forEach((c, x) => {
             if (c && pos.y + y >= 0 && pos.y + y < ROWS && pos.x + x >= 0 && pos.x + x < COLS) {
@@ -233,7 +243,6 @@ export default function Tetris() {
 
         console.log('Grid after placement:', ng);
 
-        // Find cleared rows
         let cleared = 0;
         const clearedRows: number[] = [];
         for (let i = 0; i < ROWS; i++) {
@@ -245,7 +254,6 @@ export default function Tetris() {
           }
         }
 
-        // Create new grid by shifting rows down
         const newGrid = Array.from({ length: ROWS }, () => Array(COLS).fill('bg-black'));
         let targetRow = ROWS - 1;
         for (let i = ROWS - 1; i >= 0; i--) {
@@ -257,7 +265,6 @@ export default function Tetris() {
 
         console.log('Cleared lines:', cleared, 'New grid:', newGrid);
 
-        // Update score and Meow Miles
         if (cleared > 0) {
           const points = cleared * 10;
           const miles = cleared * 10;
@@ -295,7 +302,6 @@ export default function Tetris() {
         return newGrid;
       });
 
-      // Check for game over
       const baseShape = TETROMINOES[current.key].shape;
       let shapeAtLock: TetrominoShape = baseShape;
       for (let i = 0; i < current.rot % 4; i++) {
@@ -317,7 +323,6 @@ export default function Tetris() {
         return;
       }
 
-      // Spawn new piece
       spawnPiece();
       isLocking.current = false;
     },
@@ -365,7 +370,7 @@ export default function Tetris() {
 
   // Keyboard controls with debouncing
   useEffect(() => {
-    const DEBOUNCE_MS = 50; // Reduced for responsiveness
+    const DEBOUNCE_MS = 50;
     const onKey = (e: KeyboardEvent) => {
       if (gameStatus !== 'playing') return;
       const now = Date.now();
@@ -382,7 +387,6 @@ export default function Tetris() {
         if (e.key === 'ArrowDown') np.y++;
         if (e.key === 'ArrowUp') nr++;
         if (e.key === ' ') {
-          // Hard drop
           let dropY = np.y;
           let dropShape: TetrominoShape = TETROMINOES[current.key].shape;
           for (let i = 0; i < current.rot % 4; i++) {
@@ -406,7 +410,14 @@ export default function Tetris() {
           toast.error('Error rotating piece.');
         }
       }
-      if (e.key === 'p') setGameStatus(s => (s === 'playing' ? 'idle' : 'playing'));
+      if (e.key === 'p') {
+        setGameStatus(s => {
+          const newStatus = s === 'playing' ? 'idle' : 'playing';
+          console.log('Keyboard pause toggled, new status:', newStatus);
+          if (newStatus === 'playing') lastDropTime.current = 0;
+          return newStatus;
+        });
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -414,10 +425,24 @@ export default function Tetris() {
 
   // Touch controls with debouncing
   const handleTouchAction = (action: string) => {
-    if (gameStatus !== 'playing') return;
+    if (gameStatus === 'gameOver') return;
     const now = Date.now();
-    if (lastTouchPress.current[action] && now - lastTouchPress.current[action] < 50) return;
+    if (action !== 'pause' && lastTouchPress.current[action] && now - lastTouchPress.current[action] < 50) {
+      return;
+    }
     lastTouchPress.current[action] = now;
+
+    if (action === 'pause') {
+      setGameStatus(s => {
+        const newStatus = s === 'playing' ? 'idle' : 'playing';
+        console.log('Touch pause toggled, new status:', newStatus);
+        if (newStatus === 'playing') lastDropTime.current = 0;
+        return newStatus;
+      });
+      return;
+    }
+
+    if (gameStatus !== 'playing') return;
 
     const np = { ...current.pos };
     let nr = current.rot;
@@ -426,7 +451,6 @@ export default function Tetris() {
     if (action === 'down') np.y++;
     if (action === 'rotate') nr++;
     if (action === 'place') {
-      // Hard drop
       let dropY = np.y;
       let dropShape: TetrominoShape = TETROMINOES[current.key].shape;
       for (let i = 0; i < current.rot % 4; i++) {
@@ -436,10 +460,6 @@ export default function Tetris() {
         dropY++;
       }
       lockAndClear(dropShape, { x: np.x, y: dropY });
-      return;
-    }
-    if (action === 'pause') {
-      setGameStatus(s => (s === 'playing' ? 'idle' : 'playing'));
       return;
     }
     const base = TETROMINOES[current.key].shape;
@@ -462,8 +482,9 @@ export default function Tetris() {
     const pendingToast = toast.loading('Placing bet...');
     try {
       await switchChain({ chainId: monadTestnet.id });
-      if (!balanceData || balanceData.value < BigInt(BET_AMOUNT * 1e18))
+      if (!balanceData || balanceData.value < BigInt(BET_AMOUNT * 1e18)) {
         throw new Error('Insufficient MON balance.');
+      }
       writeContract(
         {
           address: CONTRACT_ADDRESS as `0x${string}`,
@@ -586,17 +607,25 @@ export default function Tetris() {
     );
   };
 
-  if (isConnecting) {
+  // Handle loading state
+  if (!address || isDisconnected) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-900 to-black text-white text-lg">
-        Loading...
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-900 to-black text-white text-lg flex-col gap-4">
+        <div>{isDisconnected ? 'Wallet disconnected.' : 'Please connect your wallet to play Cat Tetris.'}</div>
+        <button
+          className="px-4 py-2 bg-cyan-500 text-white rounded-lg"
+          onClick={() => {
+            disconnect();
+            toast('Please reconnect your wallet via the Profile button.');
+          }}
+        >
+          {isDisconnected ? 'Reconnect Wallet' : 'Connect Wallet'}
+        </button>
       </div>
     );
   }
 
-  if (!address) return null;
-
-  console.log('Rendering score:', score);
+  console.log('Rendering Tetris UI');
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-900 to-black text-white relative overflow-hidden">
@@ -700,50 +729,51 @@ export default function Tetris() {
               ))
             )}
           </div>
-          {/* Touch controls */}
-          <div className="flex flex-wrap justify-center mt-4 w-full max-w-xs mx-auto gap-2 controls">
-            <button
-              className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-lg font-semibold"
-              onTouchStart={() => handleTouchAction('left')}
-              aria-label="Move left"
-            >
-              ←
-            </button>
-            <button
-              className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-lg font-semibold"
-              onTouchStart={() => handleTouchAction('right')}
-              aria-label="Move right"
-            >
-              →
-            </button>
-            <button
-              className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-lg font-semibold"
-              onTouchStart={() => handleTouchAction('down')}
-              aria-label="Move down"
-            >
-              ↓
-            </button>
-            <button
-              className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-lg font-semibold"
-              onTouchStart={() => handleTouchAction('rotate')}
-              aria-label="Rotate"
-            >
-              ↻
-            </button>
-            <button
-              className="px-4 py-2 bg-purple-500 text-white rounded-lg text-lg font-semibold"
-              onTouchStart={() => handleTouchAction('place')}
-              aria-label="Place piece"
-            >
-              ⬇
-            </button>
-            <button
-              className="px-4 py-2 bg-purple-500 text-white rounded-lg text-lg font-semibold"
-              onTouchStart={() => handleTouchAction('pause')}
-              aria-label="Pause"
-            >
-              ⏸
-            </button>
+          <div className={styles.controls}>
+            <div className="flex flex-wrap justify-center mt-4 w-full max-w-xs mx-auto gap-2">
+              <button
+                className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-lg font-semibold"
+                onClick={() => handleTouchAction('left')}
+                aria-label="Move left"
+              >
+                ←
+              </button>
+              <button
+                className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-lg font-semibold"
+                onClick={() => handleTouchAction('right')}
+                aria-label="Move right"
+              >
+                →
+              </button>
+              <button
+                className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-lg font-semibold"
+                onClick={() => handleTouchAction('down')}
+                aria-label="Move down"
+              >
+                ↓
+              </button>
+              <button
+                className="px-4 py-2 bg-cyan-500 text-white rounded-lg text-lg font-semibold"
+                onClick={() => handleTouchAction('rotate')}
+                aria-label="Rotate"
+              >
+                ↻
+              </button>
+              <button
+                className="px-4 py-2 bg-purple-500 text-white rounded-lg text-lg font-semibold"
+                onClick={() => handleTouchAction('place')}
+                aria-label="Place piece"
+              >
+                ⬇
+              </button>
+              <button
+                className="px-4 py-2 bg-purple-500 text-white rounded-lg text-lg font-semibold"
+                onClick={() => handleTouchAction('pause')}
+                aria-label={gameStatus === 'playing' ? 'Pause game' : 'Resume game'}
+              >
+                {gameStatus === 'playing' ? '⏸' : '▶'}
+              </button>
+            </div>
           </div>
         </section>
 

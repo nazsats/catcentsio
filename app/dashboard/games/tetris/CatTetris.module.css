@@ -38,44 +38,38 @@
   50% { transform: scale(1.5); opacity: 0.4; }
 }
 
-/* New styles for touch controls */
 .controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  max-width: 300px;
-  margin-top: 16px;
-}
-
-.controls button {
-  padding: 8px 16px;
-  font-size: 18px;
-  font-weight: 600;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  transition: transform 0.1s, background-color 0.2s;
-  min-width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.controls button:active {
-  transform: scale(0.95);
+  display: none !important;
 }
 
 @media (max-width: 640px) {
   .controls {
+    display: flex !important;
     flex-direction: column;
     align-items: center;
     gap: 6px;
+    justify-content: center;
+    max-width: 300px;
+    margin-top: 16px;
   }
+
   .controls button {
+    padding: 8px 16px;
+    font-size: 20px;
+    font-weight: 600;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.1s, background-color 0.2s;
     width: 60px;
     height: 60px;
-    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  .controls button:active {
+    transform: scale(0.95);
   }
 }
