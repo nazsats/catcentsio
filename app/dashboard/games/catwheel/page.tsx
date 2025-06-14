@@ -914,7 +914,7 @@ export default function CatWheel() {
                 {points}
               </motion.span>
             </p>
-            <p className="text-gray-300 text-sm sm:text-base">
+            <p className="text-gray-300 text-sm sm:text-base right-align">
               Best Score:{' '}
               <motion.span
                 className="text-cyan-400 font-bold"

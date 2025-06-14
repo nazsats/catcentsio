@@ -300,7 +300,7 @@ export default function Games() {
                     : 'bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400'
                 }`}
               >
-                {isPending ? 'Claiming...' : `Claim $MONAD`}
+                {isPending ? 'Claiming...' : `Claim $MON`}
               </button>
               {hasClaimedAtCurrentLevel && (
                 <p className="text-sm text-yellow-400">
