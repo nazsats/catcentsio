@@ -209,6 +209,12 @@ export default function Games() {
       description: 'Clear the cells with your movements.',
       image: '/games/tetris.png',
     },
+            {
+      id: 'catwheel',
+      title: 'Wheel Of Meow Miles',
+      description: 'Spin that sheeeeeeeeee',
+      image: '/games/catwheel.png',
+    },
         {
       id: 'race',
       title: 'Kitty Race (Coming Soon)',
