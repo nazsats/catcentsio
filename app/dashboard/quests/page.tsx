@@ -14,7 +14,7 @@ const INITIAL_QUESTS = [
   { id: 'connect_twitter', title: 'Connect Twitter', description: 'Link your Twitter account', meowMiles: 30, completed: false, icon: '/quest/link.png' },
   { id: 'connect_discord', title: 'Connect Discord', description: 'Link your Discord account', meowMiles: 30, completed: false, icon: '/quest/discord.png' },
   { id: 'follow_twitter', title: 'Follow Twitter', description: 'Follow @catcentsio on Twitter', meowMiles: 30, completed: false, icon: '/quest/x.png', taskUrl: 'https://twitter.com/catcentsio' },
-  // { id: 'follow_anselmeow', title: 'Follow Anselmeow', description: 'Follow @Anselmeow_ on Twitter', meowMiles: 30, completed: false, icon: '/quest/x.png', taskUrl: 'https://x.com/Anselmeow_' },
+  { id: 'PR603131', title: 'Follow PR603131', description: 'Follow @PR603131 on Twitter', meowMiles: 30, completed: false, icon: '/quest/x.png', taskUrl: 'https://x.com/PR603131' },
   { 
     id: 'share_post', 
     title: 'Share a Post', 
