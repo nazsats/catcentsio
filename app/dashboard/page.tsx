@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore'
 import Profile from '@/components/Profile'
 import Badges from '@/components/Badges'
-import toast from 'react-hot-toast'
+import toast, { Toaster } from 'react-hot-toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Loader from '@/components/Loader'
 import { useAccount, useDisconnect, useBalance, useSendTransaction, useChainId } from 'wagmi'
@@ -516,6 +516,17 @@ export default function DashboardPage() {
   console.log('Dashboard: Rendering main content', { season0Points, userEmail, referralsList })
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-black to-purple-950 text-white">
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: '#1a1a1a',
+            color: '#fff',
+            border: '1px solid #9333ea',
+          },
+          duration: 5000,
+        }}
+      />
       <main className="flex-1 p-4 md:p-8">
         <div className="flex flex-row flex-wrap justify-between items-center mb-6 md:mb-8 gap-4">
           <h2 className="mt-20 text-xl md:text-2xl font-semibold text-purple-300">Dashboard</h2>

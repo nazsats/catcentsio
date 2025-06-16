@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { db } from '../lib/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 import Image from 'next/image';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAccount, useWriteContract, useSwitchChain, useBalance } from 'wagmi';
@@ -244,7 +244,6 @@ export default function Badges({ totalMeowMiles }: BadgesProps) {
           text-align: center;
         }
       `}</style>
-      <Toaster position="top-right" toastOptions={{ style: { background: '#1a1a1a', color: '#fff', border: '1px solid #9333ea' } }} />
       <h4 className="text-lg md:text-xl font-semibold text-purple-400 mb-6">Your Badges</h4>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {badgeMilestones.map((badge) => {
@@ -302,4 +301,3 @@ export default function Badges({ totalMeowMiles }: BadgesProps) {
     </div>
   );
 }
-
