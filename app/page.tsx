@@ -264,20 +264,9 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="relative z-20 bg-transparent py-4 border-t border-[rgba(123,63,228,0.3)]">
-        <div className="flex items-center justify-center space-x-3">
-          <p className="text-sm text-[#cbd5e1] font-medium">Powered by Monad</p>
-          <Image
-            src="/monad-logo.png"
-            alt="Powered by Monad"
-            width={24}
-            height={24}
-            priority
-            className="w-auto h-auto opacity-90 hover:opacity-100 transition-opacity"
-          />
-        </div>
-      </footer>
+
+
+      
 
       {/* Custom Animations */}
       <style jsx>{`
