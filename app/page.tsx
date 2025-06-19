@@ -269,7 +269,7 @@ export default function LandingPage() {
         <div className="flex items-center justify-center space-x-3">
           <p className="text-sm text-[#cbd5e1] font-medium">Powered by Monad</p>
           <Image
-            src="/monad_logo.png"
+            src="/monad-logo.png"
             alt="Powered by Monad"
             width={24}
             height={24}
