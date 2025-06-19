@@ -128,9 +128,7 @@ export default function LandingPage() {
 
       {/* Background decorative elements */}
       <div className="absolute inset-0 z-0 pointer-events-none">
-        {/* Glowing orb */}
         <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-gradient-to-r from-[#7b3fe4] to-[#39d7ff] opacity-10 blur-3xl rounded-full transform -translate-x-1/2 -translate-y-1/2"></div>
-        {/* Micro-paw particles */}
         <svg className="absolute top-1/4 left-1/4 w-6 h-6 text-[#b79cff] opacity-30 animate-[float_5s_infinite]" viewBox="0 0 24 24" fill="url(#paw-gradient)">
           <path d="M12 20c-2.5 0-4.5-2-4.5-4.5 0-1.2.5-2.3 1.3-3.1.8-.8 1.9-1.3 3.2-1.3s2.4.5 3.2 1.3c.8.8 1.3 1.9 1.3 3.1 0 2.5-2 4.5-4.5 4.5zm-6-8c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm12 0c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm-6-6c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm-6 0c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2z"/>
         </svg>
@@ -145,7 +143,7 @@ export default function LandingPage() {
         </defs>
       </div>
 
-      {/* Header (removed paw) */}
+      {/* Header */}
       <nav ref={navRef} className="relative z-50 flex justify-between items-center p-6 bg-transparent">
         <div className="flex items-center">
           <Image
@@ -213,10 +211,10 @@ export default function LandingPage() {
               </div>
               <div ref={usersRef} className="space-y-2">
                 <div className="inline-block px-4 py-2 bg-[rgba(30,41,59,0.5)] backdrop-blur-md border border-[rgba(57,215,255,0.2)] rounded-full text-[#cbd5e1] text-base font-medium">
-                  Total Users: <span className="font-bold text-[#f9fafb]">50,000</span>
+                  50K+ Users Meownaded
                 </div>
                 <div className="inline-block px-4 py-2 bg-[rgba(30,41,59,0.5)] backdrop-blur-md border border-[rgba(57,215,255,0.2)] rounded-full text-[#cbd5e1] text-base font-medium">
-                  Total Transactions on Monad: <span className="font-bold text-[#f9fafb]">500,000</span>
+                  1M+ Txns on Games
                 </div>
               </div>
             </div>
@@ -255,10 +253,10 @@ export default function LandingPage() {
               </div>
               <div ref={usersRef} className="space-y-2">
                 <div className="inline-block px-4 py-2 bg-[rgba(30,41,59,0.5)] backdrop-blur-md border border-[rgba(57,215,255,0.2)] rounded-full text-[#cbd5e1] text-base font-medium">
-                  Total Users: <span className="font-bold text-[#f9fafb]">50,000</span>
+                  50K+ Users Meownaded
                 </div>
                 <div className="inline-block px-4 py-2 bg-[rgba(30,41,59,0.5)] backdrop-blur-md border border-[rgba(57,215,255,0.2)] rounded-full text-[#cbd5e1] text-base font-medium">
-                  Total Transactions on Monad: <span className="font-bold text-[#f9fafb]">500,000</span>
+                  1M+ Txns on Games
                 </div>
               </div>
             </div>
@@ -266,7 +264,7 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Footer (smaller Monad logo) */}
+      {/* Footer */}
       <footer className="relative z-20 bg-transparent py-4 border-t border-[rgba(123,63,228,0.3)]">
         <div className="flex items-center justify-center space-x-3">
           <p className="text-sm text-[#cbd5e1] font-medium">Powered by Monad</p>
