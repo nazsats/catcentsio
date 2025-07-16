@@ -48,8 +48,9 @@ const INITIAL_QUESTS = [
   { id: 'like_rt_22', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1943599678890926379' },
   { id: 'like_rt_23', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1943602447383241193' },
   { id: 'like_rt_24', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1942261963050066380' },
-  { id: 'like_rt_24', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1944080968077430795' },
-    { id: 'like_rt_24', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1944114601416962494' },
+  { id: 'like_rt_25', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1944080968077430795' },
+    { id: 'like_rt_26', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1944114601416962494' },
+        { id: 'like_rt_27', title: 'Like and RT', description: 'Like and retweet our post', meowMiles: 30, completed: false, icon: '/quest/like.png', taskUrl: 'https://x.com/CatCentsio/status/1945528676457882049' },
   { id: 'check_testnet_guide', title: 'Check Testnet Guide', description: 'Read the Catcents Testnet Guide', meowMiles: 30, completed: false, icon: '/quest/guide.png', taskUrl: 'https://medium.com/@catcentsio/catcents-how-to-testnet-48de3fa6cca2' },
 
   { id: 'join_catcents_server', title: 'Join Catcents Server', description: 'Join our Discord server', meowMiles: 30, completed: false, icon: '/quest/server.png', taskUrl: 'https://discord.gg/TXPbt7ztMC' },
